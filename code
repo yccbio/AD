@@ -1,0 +1,3301 @@
+library(readxl)
+library(rtracklayer)
+library(dplyr)
+library(plyr)
+library(FactoMineR)
+library(factoextra) 
+library(DESeq2)
+library(tidyverse) 
+library(pheatmap)
+library(RColorBrewer)
+library(factoextra) 
+library(cowplot)
+library(patchwork)
+library(ggsci)
+library(ggplot2)
+library(ggpubr)
+dds <- DESeqDataSetFromMatrix(
+  countData = exp_symbol_count,
+  colData =anno_col,
+  design= ~ type)
+dds <- DESeq(dds)
+
+
+had_wt<- results(dds, pAdjustMethod = "fdr", contrast=c("type","H--AD","H--WT"))
+had_wt<-as.data.frame(had_wt)
+had_wt$sig<-"not"
+had_wt$sig[had_wt$padj < 0.05 & had_wt$log2FoldChange >0.58] <- "up"
+had_wt$sig[had_wt$padj < 0.05 & had_wt$log2FoldChange < -0.58] <- "down"
+
+topgene<-c(had_wt[had_wt$sig=="up",] %>% top_n(10,abs(log2FoldChange)) %>%
+             rownames(),
+           had_wt[had_wt$sig=="down",] %>% top_n(10,abs(log2FoldChange)) %>%
+             rownames())
+had_wt$logfdr<- -log10(had_wt$padj)
+had_wt$label<-ifelse(rownames(had_wt) %in% topgene,rownames(had_wt),NA)
+p1<-ggscatter(had_wt, x = "log2FoldChange", y = "logfdr",
+              color = "sig", 
+              palette = c("#2E94B9","grey","#D25565"),
+              size = 3,
+              label = had_wt$label, 
+              font.label = 8, 
+              repel = T) +  xlab("log2(FC)") + ylab("-log10(FDR)")+
+  geom_hline(yintercept = 1.30, linetype="dashed") +
+  geom_vline(xintercept = c(-0.58,0.58), linetype="dashed")+
+  guides(color="none")
+
+
+pad_wt<- results(dds, pAdjustMethod = "fdr", contrast=c("type","P--AD","P--WT"))
+pad_wt<-as.data.frame(pad_wt)
+pad_wt$sig<-"not"
+pad_wt$sig[pad_wt$padj < 0.05 & pad_wt$log2FoldChange >0.58] <- "up"
+pad_wt$sig[pad_wt$padj < 0.05 & pad_wt$log2FoldChange < -0.58] <- "down"
+
+topgene<-c(pad_wt[pad_wt$sig=="up",] %>% top_n(10,abs(log2FoldChange)) %>%
+             rownames(),
+           pad_wt[pad_wt$sig=="down",] %>% top_n(10,abs(log2FoldChange)) %>%
+             rownames())
+pad_wt$logfdr<- -log10(pad_wt$padj)
+pad_wt$label<-ifelse(rownames(pad_wt) %in% topgene,rownames(pad_wt),NA)
+p2<-ggscatter(pad_wt, x = "log2FoldChange", y = "logfdr",
+              color = "sig", 
+              palette = c("#2E94B9","grey","#D25565"),
+              size = 3,
+              label = pad_wt$label, 
+              font.label = 8, 
+              repel = T) +  xlab("log2(FC)") + ylab("-log10(FDR)")+
+  geom_hline(yintercept = 1.30, linetype="dashed") +
+  geom_vline(xintercept = c(-0.58,0.58), linetype="dashed")+
+  guides(color="none")
+
+lad_wt<-results(dds, pAdjustMethod = "fdr", contrast=c("type","L--AD","L--WT"))
+lad_wt<-as.data.frame(lad_wt)
+lad_wt$sig<-"not"
+lad_wt$sig[lad_wt$padj < 0.05 & lad_wt$log2FoldChange >0.58] <- "up"
+lad_wt$sig[lad_wt$padj < 0.05 & lad_wt$log2FoldChange < -0.58] <- "down"
+
+topgene<-c(lad_wt[lad_wt$sig=="up",] %>% top_n(10,abs(log2FoldChange)) %>%
+             rownames(),
+           lad_wt[lad_wt$sig=="down",] %>% top_n(10,abs(log2FoldChange)) %>%
+             rownames())
+lad_wt$logfdr<- -log10(lad_wt$padj)
+lad_wt$label<-ifelse(rownames(lad_wt) %in% topgene,rownames(lad_wt),NA)
+p3<-ggscatter(lad_wt, x = "log2FoldChange", y = "logfdr",
+              color = "sig", 
+              palette = c("#2E94B9","grey","#D25565"),
+              size = 3,
+              label = lad_wt$label, 
+              font.label = 8, 
+              repel = T) +  xlab("log2(FC)") + ylab("-log10(FDR)")+
+  geom_hline(yintercept = 1.30, linetype="dashed") +
+  geom_vline(xintercept = c(-0.58,0.58), linetype="dashed")+
+  guides(color="none")
+
+aaa<-reshape2::melt(data.frame(rownames(exp_symbol_fpkm),log10(exp_symbol_fpkm+1),check.names = F)) %>%
+  merge(data.frame(variable=rownames(anno_col),anno_col)) 
+ggplot(data.frame(ad=as.numeric(aaa[aaa$condition=='AD',"value"]),
+                  wt= as.numeric(aaa[aaa$condition=='WT',"value"])),
+       aes(x=wt,y=ad))+
+  geom_point(color="#1F6735",alpha=0.5)+stat_cor(method = "spearman")+
+  theme_classic()+scale_y_continuous(expand = c(0,0))+
+  scale_x_continuous(expand = c(0,0))+
+  labs(x = expression(WT~log[10]~FPKM),y= expression(AD~log[10]~FPKM))
+log10(exp_symbol_fpkm+1) %>%
+  as.data.frame() %>%
+  pivot_longer(cols = everything(), names_to ="sample",
+               values_to ="expression") %>%
+  ggplot( aes(x=sample,y=expression,fill=sample)) +
+  geom_violin() + 
+  labs(x = "",y= expression(Log[10]~FPKM))+
+  theme_bw() +stat_summary(
+    fun = median,
+    geom = "point",
+    color = "black",    # 边框颜色
+    fill = "white",     # 填充颜色（适用于形状21-25）
+    size =3,
+    shape = 21          # 带边框的圆点
+  )+
+  theme(legend.position = "none",
+        panel.grid.major=element_blank(),
+        panel.grid.minor=element_blank(),
+        axis.text.x = element_text(angle = 90))
+
+rld <- rlog(dds, blind=T)#blind，转换时是否忽视实验设计。blind=T，不考虑实验设计
+dat <- as.data.frame(assay(rld))     
+#取前2000高变基因 
+#PCA查看实验和对照组情况
+dat.pca <- PCA(t(dat[order(apply(dat,1,function(x) sd(x)/mean(x)),decreasing = T)[1:2000],]) , graph = F) 
+fviz_pca_ind(dat.pca,fill.ind = anno_col$region,label="none",
+             title = "Principal Component Analysis",
+             legend.title = "Groups",pointsize=3,
+             pointshape=21,col.ind = anno_col$region,
+             palette = c("#36600e", "#fdcb6e", "#dbead5"),
+             #col.ind = 'condition', # 分组上色
+             mean.point=F#去除分组中心点
+) +theme_bw()
+
+
+pheatmap(dat[order(apply(dat,1,function(x) sd(x)/mean(x)),decreasing = T)[1:2000],],
+         show_rownames = F,show_colnames = F,
+         annotation_col = select(anno_col,region),
+         scale="row",breaks = c(seq(-2,2,length=101)),
+         color = rev(colorRampPalette(brewer.pal(10, "BrBG"))(101)),
+         annotation_colors =list(region=c('H'="#36600e",  
+                                          'L'="#fdcb6e",
+                                          "P"="#dbead5")) )
+
+M <- cor(log10(exp_symbol_fpkm+1),method ="spearman")
+pheatmap(M,show_colnames = F,clustering_method = "single",
+         show_rownames = F,
+         annotation_col = select(anno_col,region),
+         annotation_row= select(anno_col,region),
+         cluster_rows = T,cluster_cols = T,
+         annotation_colors =list(region=c('H'="#36600e",  
+                                          'L'="#fdcb6e",
+                                          "P"="#dbead5")) )
+library(ggVennDiagram)
+p4<-list(h=rownames(had_wt)[had_wt$sig!="not"],
+         p=rownames(pad_wt)[pad_wt$sig!="not"],
+         l=rownames(lad_wt)[lad_wt$sig!="not"]) %>%
+  ggVennDiagram(.,category.names = c("HP","PFC","men"),
+                label = "count", 
+                label_color = "black",
+                label_alpha = 0,
+                edge_lty = "dashed", 
+                edge_size = 1) +
+  scale_fill_gradient(low="white",high = "#b9292b",name = "gene count")
+
+p5<-list(h=rownames(had_wt)[had_wt$sig=="up"],
+         p=rownames(pad_wt)[pad_wt$sig=="up"],
+         l=rownames(lad_wt)[lad_wt$sig=="up"]) %>%
+  ggVennDiagram(.,category.names = c("HP","PFC","men"),
+                label = "count", 
+                label_color = "black",
+                label_alpha = 0,
+                edge_lty = "dashed", 
+                edge_size = 1) +
+  scale_fill_gradient(low="white",high = "#b9292b",name = "gene count")
+
+p6<-list(h=rownames(had_wt)[had_wt$sig=="down"],
+         p=rownames(pad_wt)[pad_wt$sig=="down"],
+         l=rownames(lad_wt)[lad_wt$sig=="down"]) %>%
+  ggVennDiagram(.,category.names = c("HP","PFC","men"),
+                label = "count", 
+                label_color = "black",
+                label_alpha = 0,
+                edge_lty = "dashed", 
+                edge_size = 1) +
+  scale_fill_gradient(low="white",high = "#b9292b",name = "gene count")
+
+
+library(org.Mm.eg.db)
+library(clusterProfiler)
+trans_h <- bitr(rownames(had_wt)[had_wt$sig!="not"], fromType="SYMBOL",
+                toType="ENTREZID", OrgDb="org.Mm.eg.db")
+go_h<-enrichGO(gene= trans_h$ENTREZID,
+               'org.Mm.eg.db',
+               keyType = "ENTREZID",
+               ont = "BP",
+               pvalueCutoff = 0.05,
+               pAdjustMethod = "none",
+               qvalueCutoff = 1)
+
+trans_p <- bitr(rownames(pad_wt)[pad_wt$sig!="not"], fromType="SYMBOL",
+                toType="ENTREZID", OrgDb="org.Mm.eg.db")
+go_p<-enrichGO(gene= trans_p$ENTREZID,
+               'org.Mm.eg.db',
+               keyType = "ENTREZID",
+               ont = "BP",
+               pvalueCutoff = 0.05,
+               pAdjustMethod = "none",
+               qvalueCutoff = 1)
+
+trans_l <- bitr(rownames(lad_wt)[lad_wt$sig!="not"], fromType="SYMBOL",
+                toType="ENTREZID", OrgDb="org.Mm.eg.db")
+go_l<-enrichGO(gene= trans_l$ENTREZID,
+               'org.Mm.eg.db',
+               keyType = "ENTREZID",
+               ont = "BP",
+               pvalueCutoff = 0.05,
+               pAdjustMethod = "none",
+               qvalueCutoff = 1)
+
+library(enrichplot)
+library(librarian)
+p7<-treeplot(pairwise_termsim(go_h),showCategory=20,cluster.params = list(n =4,label_words_n = 3))
+p8<-treeplot(pairwise_termsim(go_p),showCategory=20,cluster.params = list(n =4,label_words_n = 3))
+p9<-treeplot(pairwise_termsim(go_l),showCategory=20,cluster.params = list(n =4,label_words_n = 3))
+
+
+set.seed(2)
+kk_h<-enrichKEGG(gene= trans_h$ENTREZID,
+                 organism= 'mmu',
+                 pAdjustMethod = "none",
+                 pvalueCutoff = 0.05,
+                 qvalueCutoff = 1)
+kk_h1<-kk_h@result[kk_h@result$pvalue<0.05,]
+kk_h1$Description<-unlist(lapply(strsplit(kk_h1$Description," - Mus"),function(x) x[1]))
+
+kk_p<-enrichKEGG(gene= trans_p$ENTREZID,
+                 organism= 'mmu',
+                 pAdjustMethod = "none",
+                 pvalueCutoff = 0.05,
+                 qvalueCutoff = 1)
+kk_p1<-kk_p@result[kk_p@result$pvalue<0.05,]
+kk_p1$Description<-unlist(lapply(strsplit(kk_p1$Description," - Mus"),function(x) x[1]))
+
+
+kk_l<-enrichKEGG(gene= trans_l$ENTREZID,
+                 organism= 'mmu',
+                 pAdjustMethod = "none",
+                 pvalueCutoff = 0.05,
+                 qvalueCutoff = 1)
+kk_l1<-kk_l@result[kk_l@result$pvalue<0.05,]
+kk_l1$Description<-unlist(lapply(strsplit(kk_l1$Description," - Mus"),function(x) x[1]))
+
+kk<-rbind.data.frame(data.frame(g="H",kk_h1)[1:20,],
+                     data.frame(g="P",kk_p1)[1:20,],
+                     data.frame(g="L",kk_l1)[1:20,])
+pathway_class<-read.csv("D:/ycc/ad/data/KEGG-pathway-classification.csv")
+kk$class<-pathway_class$Pathway.Class.1[match(as.numeric(gsub("mmu","",kk$ID)),pathway_class$Pathway.ID)]
+kk$Description[is.na(kk$class)]
+#Efferocytosis""Cytoskeleton in muscle cells"
+kk$class[is.na(kk$class)]<-c('Cellular Processes','Cellular Processes')
+kk$class<-as.factor(kk$class)
+convert_fraction_to_numeric <- function(fraction) {
+  parts <- strsplit(fraction, "/")[[1]]  # 分割字符串
+  numerator <- as.numeric(parts[1])      # 分子
+  denominator <- as.numeric(parts[2])    # 分母
+  return(numerator / denominator)        # 返回比值
+}
+kk$GeneRatio1 <- sapply(kk$GeneRatio, convert_fraction_to_numeric)
+
+kk<-kk[order(kk$g,kk$class),]
+p10<-ggplot(kk[1:20,],aes(x=Description,y=GeneRatio1,fill=-1*log10(pvalue)))+ 
+  geom_bar(stat="identity") + coord_flip()+ 
+  #scale_fill_manual(values=c('Cellular Processes'="#BC3C29B2",'Human Diseases'="#E18727B2",
+  #                           'Metabolism'="#7876B1B2",'Organismal Systems'="#20854EB2",
+  #                           'Environmental Information Processing'="#0072B5B2",
+  #                           "Genetic Information Processing"="#FFDC91B2",
+  #                           "Drug Development"="#6F99ADB2"))+
+  scale_fill_gradient(low="#c7e9c0",high="#006d2c")+
+  theme_classic()+
+  labs(x="",y="GeneRatio")+scale_x_discrete(limits=rev(kk[1:20,3]))
+p12<-ggplot(kk[21:40,],aes(x=Description,y=GeneRatio1,fill=-1*log10(pvalue)))+ 
+  geom_bar(stat="identity") + coord_flip()+ 
+  #scale_fill_manual(values=c('Cellular Processes'="#BC3C29B2",'Human Diseases'="#E18727B2",
+  #                           'Metabolism'="#7876B1B2",'Organismal Systems'="#20854EB2",
+  #                           'Environmental Information Processing'="#0072B5B2",
+  #                           "Genetic Information Processing"="#FFDC91B2",
+  #                           "Drug Development"="#6F99ADB2"))+
+  scale_fill_gradient(low="#c7e9c0",high="#006d2c")+
+  theme_classic()+
+  labs(x="",y="GeneRatio")+scale_x_discrete(limits=rev(kk[21:40,3]))
+p11<-ggplot(kk[41:60,],aes(x=Description,y=GeneRatio1,fill=-1*log10(pvalue)))+ 
+  geom_bar(stat="identity") + coord_flip()+ 
+  #scale_fill_manual(values=c('Cellular Processes'="#BC3C29B2",'Human Diseases'="#E18727B2",
+  #                           'Metabolism'="#7876B1B2",'Organismal Systems'="#20854EB2",
+  #                           'Environmental Information Processing'="#0072B5B2",
+  #                           "Genetic Information Processing"="#FFDC91B2",
+  #                           "Drug Development"="#6F99ADB2"))+
+  scale_fill_gradient(low="#c7e9c0",high="#006d2c")+
+  theme_classic()+
+  labs(x="",y="GeneRatio")+scale_x_discrete(limits=rev(kk[41:60,3]))
+cor_plot<-data.frame(had_wt,pad_wt)[which(had_wt$sig!="not" & pad_wt$sig!="not"),]
+
+lm_df <- coef(lm(log2FoldChange ~ log2FoldChange.1, data = cor_plot))
+lm_string <- paste0("\u03b2 = ", signif(lm_df[2],2) )
+cor_string <- paste0("\u03c1 = ", signif(cor(cor_plot$log2FoldChange,cor_plot$log2FoldChange.1, method ="spearman"),2) )
+
+p13<-cor_plot %>%
+  ggplot(aes(x = log2FoldChange.1, y = log2FoldChange)) + 
+  labs(x = expression(P~log[2]~fold~change), y =expression(H~log[2]~fold~change), colour = "") +
+  theme_classic()+
+  geom_smooth(method = "lm", se = FALSE, colour = "darkblue") +
+  theme(legend.position = "bottom") +
+  geom_point(size=3) + geom_abline()+
+  annotate(geom = "text", x = 0.5, y = 4.5, label = paste0(cor_string, "\n", lm_string), size = 3.5)
+library(GSVA)
+library(gson)
+library(clusterProfiler)
+set.seed(11)
+geneset <- read.gmt("D:/ycc/ad/mh.all.v2023.1.Mm.symbols.gmt")
+hall_class<-readxl::read_excel("D:/ycc/ad96/data/HALLMARK.xlsx")
+hall_class<-as.data.frame(hall_class)
+geneList_l <- lad_wt$log2FoldChange
+names(geneList_l) <- rownames(lad_wt)
+geneList_l <- sort(geneList_l,decreasing = T)
+gsea_results_l <- GSEA(
+  geneList = geneList_l,
+  TERM2GENE = geneset,
+  verbose = F,
+  pvalueCutoff = 1,
+  eps=0
+)
+set.seed(124)
+geneList_h <- had_wt$log2FoldChange
+names(geneList_h) <- rownames(had_wt)
+geneList_h <- sort(geneList_h,decreasing = T)
+gsea_results_h <- GSEA(
+  geneList = geneList_h,
+  TERM2GENE = geneset,
+  verbose = F,
+  pvalueCutoff = 1,
+  eps=0
+)
+
+geneList_p <- pad_wt$log2FoldChange
+names(geneList_p) <- rownames(pad_wt)
+geneList_p <- sort(geneList_p,decreasing = T)
+gsea_results_p <- GSEA(
+  geneList = geneList_p,
+  TERM2GENE = geneset,
+  verbose = F,
+  pvalueCutoff = 1,
+  eps=0
+)
+
+gsea_results_h@result$ID<-gsub("HALLMARK_","",gsea_results_h@result$ID)
+gsea_results_p@result$ID<-gsub("HALLMARK_","",gsea_results_p@result$ID)
+gsea_results_l@result$ID<-gsub("HALLMARK_","",gsea_results_l@result$ID)
+
+hallmark<-rbind.data.frame(data.frame(compared.group="h",gsea_results_h@result[,c("ID","NES","pvalue")]),
+                           data.frame(compared.group="p",gsea_results_p@result[,c("ID","NES","pvalue")]),
+                           data.frame(compared.group="l",gsea_results_l@result[,c("ID","NES","pvalue")]))
+hallmark$ID<-factor(hallmark$ID,levels =gsub("HALLMARK_","",hall_class$NAME ))
+hallmark$compared.group<-factor(hallmark$compared.group,levels = c("h","p","l"))
+
+x_cols <- rep(c("#ad676c","#6a749c","#d0b680","#f1bdb0",
+                "#809ea5","#4A452A","#9c8fba"),
+              time=table(hall_class$class))
+ggplot(hallmark,
+       aes(x=NES, y=ID,color=NES))+ 
+  geom_segment(aes(yend = ID), xend=0, size=5)+
+  geom_segment(data=hallmark %>% filter(NES <0),aes(yend = ID), xend = -2, x=0, alpha = 0.2, size=5)+
+  geom_segment(data=hallmark %>% filter(NES >0),aes(yend = ID), xend =3, x=0,alpha = 0.2, size=5)+
+  facet_wrap(~compared.group, labeller = label_both)+
+  geom_point(size=4.5)+
+  scale_color_gradient2(low="steelblue4",high="#BA7A70",mid="white",midpoint = 0)+
+  geom_vline(xintercept = 0, size=1, color='grey35')+
+  expand_limits(x=c(-2,2.75))+
+  scale_x_continuous(breaks = c( -1, 0,1, 2))+
+  labs(x=NULL,y=NULL)+
+  theme_bw()+
+  theme(panel.grid = element_blank(),
+        axis.text.y = element_text(colour=x_cols), 
+        axis.line.x = element_line(color = "grey3", size = 0.5),
+        axis.text.x = element_text(size = 10, color = "black"))
+
+hall_inex<-union(union(gsea_results_h@result$ID[gsea_results_h@result$pvalue<0.05],
+                       gsea_results_p@result$ID[gsea_results_p@result$pvalue<0.05]),
+                 gsea_results_l@result$ID[gsea_results_l@result$pvalue<0.05])
+hallmark_part<-hallmark[hallmark$ID %in% hall_inex ,]
+hallmark_part$NES<-ifelse(hallmark_part$pvalue<0.05,hallmark_part$NES,NA)
+
+x_col1<-x_cols[match(sort(unique(hallmark_part$ID)),gsub("HALLMARK_","",hall_class$NAME))]
+p14<-ggplot(hallmark_part,
+            aes(x=NES, y=ID,color=NES))+
+  geom_segment(aes(yend = ID), xend=0, size=5)+
+  geom_segment(data=hallmark_part %>% filter(NES <0),aes(yend = ID), xend = -2, x=0, alpha = 0.2, size=5)+
+  geom_segment(data=hallmark_part %>% filter(NES >0),aes(yend = ID), xend =3, x=0,alpha = 0.2, size=5)+
+  facet_wrap(~compared.group, labeller = label_both)+
+  geom_point(size=4.5)+
+  geom_vline(xintercept = 0, size=1, color='grey35')+
+  expand_limits(x=c(-2,2.75))+
+  scale_x_continuous(breaks = c( -1, 0,1, 2))+
+  scale_color_gradient2(low="steelblue4",high="#BA7A70",mid="white",midpoint = 0)+
+  labs(x=NULL,y=NULL)+
+  theme_test()+
+  theme(panel.grid = element_blank(),
+        axis.text.y = element_text(colour=x_col1), 
+        axis.line.x = element_line(color = "grey3", size = 0.5),
+        axis.text.x = element_text(size = 10, color = "black"))
+
+design <- model.matrix(~0+anno_col$type)
+colnames(design) = levels(factor(anno_col$type))
+rownames(design) = rownames(anno_col)
+colnames(design) <- gsub("--", "_", colnames(design))
+library(limma)
+fit=lmFit(cibersort,design)
+fit2=contrasts.fit(fit,makeContrasts('`H_AD`-`H_WT`',levels = design))
+fit2=eBayes(fit2)
+fit3=contrasts.fit(fit,makeContrasts('`P_AD`-`P_WT`',levels = design))
+fit3=eBayes(fit3)
+fit4=contrasts.fit(fit,makeContrasts('`L_AD`-`L_WT`',levels = design))
+fit4=eBayes(fit4)
+pathway_res<-rbind.data.frame(data.frame(term="H",logFC=as.numeric(fit2$coefficients),
+                                         AveExpr=fit2$Amean,
+                                         t=as.numeric(fit2$t),
+                                         P.value=as.numeric(fit2$p.value)),
+                              data.frame(term="P",logFC=as.numeric(fit3$coefficients),
+                                         AveExpr=fit3$Amean,
+                                         t=as.numeric(fit3$t),
+                                         P.value=as.numeric(fit3$p.value)),
+                              data.frame(term="L",logFC=as.numeric(fit4$coefficients),
+                                         AveExpr=fit4$Amean,
+                                         t=as.numeric(fit4$t),
+                                         P.value=as.numeric(fit4$p.value)))
+pathway_res$cell<-rep(c("B","T","NK","Macrophage/Monocyte","DC","Mast","Eosinophil","Neutrophil"),3)
+pathway_res$label<-NA
+pathway_res$label[pathway_res$P.value<0.1 & pathway_res$P.value>=0.05]<-"."
+pathway_res$label[pathway_res$P.value<0.05 &pathway_res$P.value>=0.01]<-"*"
+pathway_res$label[pathway_res$P.value<0.01 &pathway_res$P.value>=0.001]<-"**"
+pathway_res$label[pathway_res$P.value<0.001]<-"***"
+pathway_res$term<-factor(pathway_res$term,levels = c("H","P","L"))
+
+lot<-ggplot(pathway_res,
+            aes(x=term, y=t,fill=term))+
+  facet_grid(~cell)+
+  geom_bar(stat="identity")+
+  scale_fill_manual(values = c("#FED439FF", "#D2AF81FF","#709AE1FF" ))+
+  geom_hline(yintercept=0)+
+  labs(x=NULL,y="t value of GSVA score")+     
+  geom_text(aes(label=label,vjust=-0.3),size=6)+  
+  theme_bw()+
+  theme(
+    panel.grid = element_blank(),
+    axis.line.x = element_blank(),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank())
+
+type=as.character(anno_col$type)
+type<-ifelse(type %in% c("H--AD","P--AD"),"brain_AD",type)
+type<-ifelse(type %in% c("H--WT","P--WT"),"brain_WT",type)
+
+design <- model.matrix(~0+type)
+colnames(design) = levels(factor(type))
+rownames(design) = rownames(anno_col)
+colnames(design) <- gsub("--", "_", colnames(design))
+fit=lmFit(cibersort,design)
+fit2=contrasts.fit(fit,makeContrasts('`brain_AD`-`brain_WT`',levels = design))
+fit2=eBayes(fit2)
+fit4=contrasts.fit(fit,makeContrasts('`L_AD`-`L_WT`',levels = design))
+fit4=eBayes(fit4)
+pathway_res<-rbind.data.frame(data.frame(term="H/P",logFC=as.numeric(fit2$coefficients),
+                                         AveExpr=fit2$Amean,
+                                         t=as.numeric(fit2$t),
+                                         P.value=as.numeric(fit2$p.value)),
+                              data.frame(term="L",logFC=as.numeric(fit4$coefficients),
+                                         AveExpr=fit4$Amean,
+                                         t=as.numeric(fit4$t),
+                                         P.value=as.numeric(fit4$p.value)))
+pathway_res$cell<-rep(c("B","T","NK","Macrophage/Monocyte","DC","Mast","Eosinophil","Neutrophil"),2)
+pathway_res$label<-NA
+pathway_res$label[pathway_res$P.value<0.1 & pathway_res$P.value>=0.05]<-"."
+pathway_res$label[pathway_res$P.value<0.05 &pathway_res$P.value>=0.01]<-"*"
+pathway_res$label[pathway_res$P.value<0.01 &pathway_res$P.value>=0.001]<-"**"
+pathway_res$label[pathway_res$P.value<0.001]<-"***"
+
+ggplot(pathway_res,
+       aes(x=term, y=t,fill=term))+
+  facet_grid(~cell)+
+  geom_bar(stat="identity")+
+  scale_fill_manual(values = c( "#D2AF81FF","#709AE1FF" ))+
+  geom_hline(yintercept=0)+
+  labs(x=NULL,y="t value of GSVA score")+     
+  geom_text(aes(label=label,vjust=-0.3),size=6)+  
+  theme_bw()+
+  theme(
+    panel.grid = element_blank(),
+    axis.line.x = element_blank(),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank())
+
+sample_color<-c("#59A14F", "#8CD17D", "#B07AA1", "#D4A6C8", "#86BCB6", "#b06096")
+group_color<- c( "#F7B677","#C5B0D5", "#FF9896", "#AEC7E8",
+                 "#DBDB8D", "#4E79A7", "#FABFD2","#F1CE63","#C7C7C7")
+
+samples=list.files("./data/GSE207701_RAW")
+samples
+sceList<-lapply(samples,function(pro){ 
+  print(pro) 
+  library(Seurat)
+  sce = CreateSeuratObject(counts = Read10X(file.path("./data/GSE207701_RAW/",pro )) ,
+                           project =pro ,
+                           min.cells = 3,
+                           min.features = 200 )
+  print(sce)
+  return(sce)
+})
+#####计算线粒体比例/双细胞 #####
+library(DoubletFinder)
+for(i in 1:length(sceList)){  
+  sceList[[i]][["percent.mt"]] <- PercentageFeatureSet(sceList[[i]], pattern = "^mt-")
+  print(i)  
+  data <- NormalizeData(sceList[[i]], normalization.method = "LogNormalize", scale.factor = 10000) %>%
+    FindVariableFeatures()%>%
+    ScaleData(features = rownames(.)) %>%  
+    RunPCA(features = VariableFeatures(.))%>%
+    RunUMAP(dims = 1:30)%>%
+    FindNeighbors(dims = 1:30) %>%
+    FindClusters(resolution = 0.2)
+  sweep.res.list <- paramSweep(data, PCs = 1:30, sct = F)  
+  sweep.stats <- summarizeSweep(sweep.res.list, GT = FALSE)  
+  bcmvn <- find.pK(sweep.stats)  
+  pK_bcmvn <- bcmvn$pK[which.max(bcmvn$BCmetric)] %>% 
+    as.character() %>% as.numeric() 
+  #提取最佳pk值  ## Homotypic Doublet Proportion Estimate 
+  annotations <- data@meta.data$ClusteringResults  
+  homotypic.prop <- modelHomotypic(annotations)   
+  nExp_poi <- round(0.075*nrow(data@meta.data))  
+  ## Assuming 7.5% doublet formation rate - tailor for your dataset  
+  nExp_poi.adj <- round(nExp_poi*(1-homotypic.prop))
+  ## Run DoubletFinder with varying classification stringencies -
+  data <- doubletFinder(data, PCs = 1:30, pN = 0.25, pK = pK_bcmvn, nExp = nExp_poi, reuse.pANN = FALSE, sct = FALSE)  #
+  sceList[[i]]$doubFind_res = data@meta.data %>% dplyr::select(contains('DF.classifications')) 
+  sceList[[i]]$doubFind_score = data@meta.data %>% dplyr::select(contains('pANN'))
+}
+
+brain<-merge(x=sceList[[1]], y=sceList[-1],
+             add.cell.ids =  samples) 
+
+
+p1<-brain@meta.data %>%
+  ggplot(aes(color = orig.ident, x=percent.mt, fill=orig.ident)) +
+  geom_density(alpha = 0.2) +
+  scale_x_log10() +
+  theme_classic() +
+  geom_vline(xintercept = 5, colour="blue", linetype="dashed")+
+  scale_fill_manual(values = sample_color)+
+  scale_color_manual(values =sample_color)
+
+p2<-brain@meta.data %>%
+  ggplot(aes(color = orig.ident, x=nFeature_RNA, fill=orig.ident)) +
+  geom_density(alpha = 0.2) +
+  scale_x_log10() +
+  theme_classic() +
+  geom_vline(xintercept = 6000, colour="blue", linetype="dashed")+
+  scale_fill_manual(values = sample_color)+
+  scale_color_manual(values =sample_color)
+p1+theme(legend.position = "none")|p2
+
+brain_select <- subset(brain, subset = nFeature_RNA < 6000 & nFeature_RNA>200&
+                         percent.mt< 5 )
+#19345 features across 22845 samples within 1 assay 
+brain_select$type<-NA
+brain_select$type[grep('NonTg$',brain_select$orig.ident)]<-"N_brain"
+brain_select$type[grep('5xFAD$',brain_select$orig.ident)]<-"AD_brain"
+brain_select$type[grep('NonTgMen',brain_select$orig.ident)]<-"N_Men"
+brain_select$type[grep('5xFADMen',brain_select$orig.ident)]<-"AD_Men"
+brain_select$type1<-ifelse(brain_select$type %in% c("N_brain","N_Men"),"N","AD")
+
+library(dplyr)
+library(plyr)
+brain_select <- NormalizeData(brain_select, normalization.method = "LogNormalize", scale.factor = 10000) %>%
+  FindVariableFeatures() %>%
+  ScaleData(features = rownames(.)) %>%  
+  RunPCA(features = VariableFeatures(.)) %>%
+  IntegrateLayers(method = HarmonyIntegration,
+                  orig.reduction = "pca", new.reduction = "harmony",
+                  verbose = FALSE) %>%
+  JoinLayers() %>%
+  FindNeighbors(reduction = 'harmony', dims = 1:30)
+
+brain_select<-FindClusters(brain_select, resolution=c(0.01, 0.05, 0.1, 0.2, 0.3, 0.5))
+library(clustree)
+pdf(paste0("./result/scrna/","features_counts.pdf"),  height=8, width=8)
+clustree(brain_select@meta.data, prefix = "RNA_snn_res.")
+dev.off()
+
+brain_select<-FindClusters(brain_select,resolution = 0.2)%>%
+  RunUMAP(reduction = "harmony", dims = 1:30)%>%
+  RunTSNE(reduction = "harmony", dims = 1:30)
+
+
+intersect_gene = intersect(rownames(brain_select),rownames(exp_symbol_count))
+sc_N_exp = rowMeans(brain_select@assays$RNA$counts[intersect_gene,filter(brain_select@meta.data,type1 == 'N') %>% rownames()]) %>% data.frame()
+sc_T_exp = rowMeans(brain_select@assays$RNA$counts[intersect_gene,filter(brain_select@meta.data,type1 == 'AD') %>% rownames()]) %>% data.frame()
+
+bulk_N_exp = rowMeans(log2(exp_symbol_count+1)[intersect_gene,grep("WT",colnames(exp_symbol_count))]) %>% data.frame()
+bulk_T_exp = rowMeans(log2(exp_symbol_count+1)[intersect_gene,grep("AD",colnames(exp_symbol_count))]) %>% data.frame()
+
+names(sc_N_exp) = 'sc_N_exp'
+names(sc_T_exp) = 'sc_T_exp'
+names(bulk_N_exp) = 'bulk_N_exp'
+names(bulk_T_exp) = 'bulk_T_exp'
+
+cor = cbind(sc_N_exp,sc_T_exp,bulk_N_exp,bulk_T_exp)
+p2<-ggplot(cor,aes_string(x = cor$bulk_T_exp,y = cor$sc_T_exp)) +
+  geom_point(size = 1,color = '#898281',alpha = 1) +
+  #geom_smooth(method = 'loess',se = T,size = 1) +
+  stat_cor(method = "spearman",digits = 3,size=4)+
+  theme_bw() +theme(axis.title = element_text(size = 16),
+                    axis.text = element_text(size = 14),
+                    axis.ticks.length = unit(0.25,'cm'),
+                    axis.ticks = element_line(size = 1),
+                    panel.border = element_rect(size = 1.5),
+                    panel.grid = element_blank()) + ylim(0,50)+
+  xlab('Bulk RNA-seq(Count)')+ ylab("scRNA-seq(Count)")+ggtitle("AD")
+
+
+p3<-ggplot(cor,aes_string(x = cor$bulk_N_exp,y = cor$sc_N_exp)) +
+  geom_point(size = 1,color = '#898281',alpha = 1) +
+  #geom_smooth(method = 'loess',se = T,size = 1) +
+  stat_cor(method = "spearman",digits = 3,size=4)+
+  theme_bw() +theme(axis.title = element_text(size = 16),
+                    axis.text = element_text(size = 14),
+                    axis.ticks.length = unit(0.25,'cm'),
+                    axis.ticks = element_line(size = 1),
+                    panel.border = element_rect(size = 1.5),
+                    panel.grid = element_blank()) + ylim(0,50)+
+  xlab('Bulk RNA-seq(Count)')+ ylab("scRNA-seq(Count)")+ggtitle("Normal")
+
+
+#####注释#####
+markers <- FindAllMarkers(brain_select, only.pos = T, min.pct = 0.25, logfc.threshold = 0.25)
+top5 <- markers %>% group_by(cluster) %>% top_n(n = 5, wt = avg_log2FC)
+top10 <- markers %>% group_by(cluster) %>% top_n(n =10, wt = avg_log2FC)
+#openxlsx::write.xlsx(list(top5,top10),"./result/scrna/top marker.xlsx")
+
+marker_cluster<-c("Cd3e","Cd3d",#T
+                  "Gzmc","Ncr1",#NK
+                  "Cd79a","Cd19",#B
+                  "Cd14","Mrc1","F13a1",#monocytes/macrophage
+                  "Clec9a","Klk1",#dc
+                  "Kit","Il13","Il5",#mast
+                  "Hdc","S100a9","S100a8",#neutrophil
+                  "Tmem119","P2ry12"#microglial
+)
+
+
+avg_expression <- AverageExpression(brain_select, features = marker_cluster)
+avg_expression <- as.data.frame(avg_expression)
+
+
+
+brain_select$cell<-NA
+brain_select$cell[brain_select$seurat_clusters %in% c(0,6,9)]<-"T"
+brain_select$cell[brain_select$seurat_clusters %in% c(1,5,11)]<-"Microglial"
+brain_select$cell[brain_select$seurat_clusters %in% c(2,8)]<-"B"
+brain_select$cell[brain_select$seurat_clusters %in% c(3,7)]<-"Neutrophils"
+brain_select$cell[brain_select$seurat_clusters %in% c(4)]<-"NK"
+brain_select$cell[brain_select$seurat_clusters %in% c(10,12)]<-"Monocytes/Macrophage"
+brain_select$cell[brain_select$seurat_clusters %in% c(14)]<-"DC"
+brain_select$cell[brain_select$seurat_clusters %in% c(13)]<-"Mast cell"
+brain_select$cell[brain_select$seurat_clusters %in% c(15:17)]<-"other"
+brain_select$cell<-factor(brain_select$cell,levels = c("T","NK","B","DC","Mast cell",
+                                                       "Monocytes/Macrophage","Neutrophils",
+                                                       "Microglial","other"))
+brain_select$type1<-ifelse(brain_select$type %in% c("N_brain","N_Men"),"N","AD")
+library(ggunchull)
+library(tidydr)
+data <- as.data.frame(brain_select[["umap"]]@cell.embeddings)
+data$celltype <- brain_select$cell
+data$cluster<-brain_select$seurat_clusters
+data$type<-brain_select$type1
+data$patient<-brain_select$orig.ident
+
+
+
+p4<-ggplot(data, aes(x = umap_1,y = umap_2,fill = patient,color = patient)) +
+  geom_point(size = 1,alpha=0.7) +
+  theme_dr()+
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank())+
+  scale_fill_manual(values=sample_color) +
+  scale_color_manual(values=sample_color)+
+  xlab("UMAP1")+ylab("UMAP2")
+
+p5<-ggplot(data, aes(x = umap_1,y = umap_2,fill = type,color = type)) +
+  geom_point(size = 1,alpha=0.7) +
+  theme_dr()+
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank())+
+  scale_fill_manual(values=c("#ccbee6", "#a2b067")) +
+  scale_color_manual(values=c("#ccbee6", "#a2b067"))+
+  xlab("UMAP1")+ylab("UMAP2")
+
+p6<-ggplot(data, aes(x = umap_1,y = umap_2,fill = cluster,color = cluster)) +
+  geom_point(size = 1,alpha=0.7) +
+  theme_dr()+
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank())+
+  xlab("UMAP1")+ylab("UMAP2")+
+  scale_fill_manual(values = c(pal_locuszoom(alpha = 0.7)(7),pal_jco(alpha = 0.7)(10),
+                               pal_npg("nrc", alpha = 0.7)(9)))+
+  scale_color_manual(values = c(pal_locuszoom(alpha = 0.7)(7),pal_jco(alpha = 0.7)(10),
+                                pal_npg("nrc", alpha = 0.7)(9)))
+#geom_text(data=index,color="black",
+#         aes(label = cluster), nudge_x = 0.1, nudge_y = 0.1)
+
+p7<-ggplot(data, aes(x = umap_1,y = umap_2,fill = celltype,color = celltype)) +
+  geom_point(size = 1) +
+  theme_dr()+
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank())+
+  scale_fill_manual(values = group_color) +
+  scale_color_manual(values = group_color)+
+  xlab("UMAP1")+ylab("UMAP2")+
+  geom_text(data=index,color="black",
+            aes(label = celltype), nudge_x = 0.1, nudge_y = 0.1)
+
+Idents(brain_select)="cell"
+pdf("./result/scrna/umap_type.pdf",width = 6,height = 4)
+DimPlot(brain_select,reduction = "umap",split.by = "type",
+        cols = group_color)
+dev.off()
+
+
+
+library(reshape2)
+#添加细胞name和细胞群身份
+vln.df=as.data.frame(t(brain_select[["RNA"]]$data[marker_cluster,]))
+#vln.df$cell<-brain_select$cell
+vln.df$cluster<-brain_select$seurat_clusters
+vln.df$colname<-rownames(vln.df)
+vln.df<-reshape2::melt(vln.df,
+                       id.vars=c("cluster","colname"))
+spring<-c("#f6bcfd","#8dd3c6","#ffc512","#ffa300","#ff7d00",
+          "#ff6581","#f8d90d","#a5da6b","#e578d6","#ffd2d8",
+          "#90e4cd","#84dce0","#fe65b3",pal_aaas("default",alpha = 0.5)(9))
+
+p7<-ggplot(vln.df,aes(variable,value,fill=variable))+
+  geom_violin(scale="width",adjust=1,trim=TRUE)+
+  scale_y_continuous(expand=c(0,0),position="right",
+                     labels=function(x)
+                       c(rep(x="",times=length(x)-2),x[length(x)-1],""))+
+  facet_grid(rows=vars(cluster),scales="free",switch="y")+
+  #theme_cowplot(font_size=12)+
+  theme(legend.position="none",
+        panel.spacing=unit(0,"lines"),
+        plot.title=element_text(hjust=0.5),
+        panel.background=element_rect(fill=NA,color="black"),
+        #plot.margin=margin(6,6,0,6,"pt"),
+        strip.background=element_blank(),
+        strip.text=element_text(face="bold"),
+        strip.text.y.left=element_text(angle=0),
+        axis.title.x=element_blank(),
+        axis.ticks.x=element_blank(),
+        axis.ticks.y=element_blank(),
+        axis.text.x=element_blank(),
+        axis.text.y = element_blank())+
+  ylab("Expression Level")+
+  scale_fill_manual(values=spring)+
+  scale_color_manual(values=spring)
+
+dat<-data.frame(x=1:19) %>%
+  mutate(group=case_when(
+    x >=1 & x <= 4 ~ "T/NK",
+    x >=5 & x <= 6 ~ "B",
+    x >=7 & x <= 9 ~ "Mon/Macro",
+    x >=10 & x <= 11 ~ "DC",
+    x >=12 & x <= 14 ~ "Mast",
+    x >=15 & x <= 17 ~ "Neutrophils",
+    x >=18 & x <= 19 ~ "Microglial"
+  ))
+
+label_pos<-by(dat$x,dat$group,mean)%>%
+  data.frame()
+colnames(label_pos)[1]="midpoint"
+label_pos$group<-rownames(label_pos)
+df <- data.frame(x = levels(vln.df$variable),
+                 group = dat$group,
+                 stringsAsFactors = FALSE)
+
+df$x <- factor(df$x, levels = levels(vln.df$variable))
+df$group <- factor(df$group,levels=c("T/NK","B","DC",
+                                     "Mast","Mon/Macro","Neutrophils","Microglial"))
+df
+p8 <- ggplot(df, aes(x = x, y = 1, fill = group)) +
+  geom_tile() +
+  geom_text(data = label_pos,
+            aes(x = midpoint, y = 1, label = group),
+            fontface = "bold",
+            size = 4) +
+  theme_bw(base_size = 12) +
+  scale_fill_manual(values =group_color) +
+  scale_y_continuous(expand = c(0, 0)) +
+  theme(legend.position = "none",
+        panel.spacing = unit(0, "lines"),
+        panel.background = element_blank(),
+        panel.border = element_blank(),
+        plot.background = element_blank(),
+        plot.margin = margin(0, 0, 7, 0, "pt"),
+        axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5, color = "black"),
+        axis.title.y = element_blank(),
+        axis.title.x = element_blank(),
+        axis.ticks.y = element_blank(),
+        panel.grid = element_blank(),
+        axis.text.y = element_blank()) 
+library(cowplot)
+pdf("./result/scrna/vln.pdf",width = 22,height = 11)
+plot_grid(p7,p8,ncol=1,rel_heights=c(0.81,0.19),
+          align="v",axis="lr")
+dev.off()
+
+
+
+library(dplyr)
+library(Seurat)
+dc<-subset(brain_select,cell=="DC")
+dc<-subset(dc,doubFind_res=="Singlet")
+dc.int<-CreateSeuratObject(split(dc[["RNA"]],f=dc$type))#按照样本太少，按照type
+
+dc.int<-NormalizeData(dc.int, normalization.method = "LogNormalize", scale.factor = 10000) %>%
+  FindVariableFeatures() %>%
+  ScaleData(features = rownames(.)) %>%  
+  RunPCA(features = VariableFeatures(.)) 
+ElbowPlot(dc.int, ndims = 50)
+dc.int<-IntegrateLayers(dc.int,method = HarmonyIntegration,
+                        orig.reduction = "pca", new.reduction = "harmony",
+                        verbose = FALSE) %>%
+  JoinLayers()
+
+dc.int<-FindNeighbors(dc.int,reduction = 'harmony', dims = 1:30)
+
+dc.int<-FindClusters(dc.int, resolution =c(0.01, 0.05, 0.1, 0.2, 0.3, 0.4,0.5))
+library(clustree)
+pdf("./result/dc/dc_clustree.pdf",width = 6,height = 6)
+clustree(dc.int@meta.data, prefix = "RNA_snn_res.")
+dev.off()
+
+dc.int<-FindClusters(dc.int,resolution=0.5) %>%
+  RunUMAP(reduction = "harmony", dims = 1:30)%>%
+  RunTSNE(reduction = "harmony", dims = 1:30)
+
+
+dc_marker = FindAllMarkers(dc.int, only.pos = T, min.pct = 0.25, logfc.threshold = 0.25)
+dc_top = dc_marker %>% group_by(cluster) %>% top_n(n = 5, wt = avg_log2FC ) 
+dc_top20 =dc_marker %>% group_by(cluster) %>% top_n(n = 20, wt = avg_log2FC ) 
+dc.int@meta.data[dc.int$seurat_clusters==0, 'cell']<-"cDC2"
+dc.int@meta.data[dc.int$seurat_clusters==1, 'cell']<-"pDC"
+dc.int@meta.data[dc.int$seurat_clusters==2, 'cell']<-"cDC1"
+dc.int@meta.data[dc.int$seurat_clusters==3, 'cell']<-"migDC"
+dc.int$type<-brain_select$type[match(colnames(dc.int),colnames(brain_select))]  
+dc.int$type1<-brain_select$type1[match(colnames(dc.int),colnames(brain_select))]  
+
+marker<-c('Clec10a','Mgl2','Sirpa','Itgam',#cDC2
+          'Clec9a', 'Xcr1','Clnk',#cDC1
+          'Ccr7','Ccl5','Ccl22',#maturing migratory DCs 
+          'Bst2', 'Siglech','Tcf4')#pDC
+p1<-DotPlot(dc.int, features =marker,  col = "RdYlBu", 
+            group.by = "cell",  
+            col.min = -1.5, col.max = 1.5, scale.max = 50) + 
+  theme(#legend.position = "none", 
+    axis.ticks.x = element_blank(), 
+    axis.title.y = element_text(size = 10), 
+    axis.text.y = element_text(size = 10),
+    axis.text.x = element_text(angle = 90,hjust = 0.5,vjust=0.5),
+    axis.line = element_blank(), 
+    panel.border = element_rect(colour = "black", fill = NA, size = 1)) + 
+  labs(x = NULL, y = NULL)
+
+
+library(cols4all)
+c4a_gui()
+mycol3<-c4a("brewer.set1", 5)
+p2<-DimPlot(dc.int, reduction = "umap",group.by = 'cell',
+            cols = mycol3,label=TRUE,
+            label.box = TRUE, label.size = 3) +
+  ggtitle(NULL) & NoLegend() & NoAxes()
+library(patchwork)
+require(ggplotify)
+p2|p1
+
+
+
+ggplot(dc.int@meta.data, aes(x=type, fill=cell, color=cell)) + geom_bar(position = position_fill(reverse = TRUE), alpha=0.8, width=0.5) + 
+  theme_classic() + scale_fill_manual(values=mycol3, name= "Cell Types") + scale_color_manual(values=mycol3, name= "Cell Types") +
+  theme( axis.text.x = element_text(size=10), plot.title = element_text(size = 10, face = "bold", hjust = 0.5)) +
+  labs(x=NULL, y="Percent")
+ggsave("./result/dc/prop.pdf",width = 6,height = 4)
+
+
+prop<-prop.table(table(dc.int$type,dc.int$cell), margin = 1)
+dat<-data.frame(brain=apply(prop,2,function(x) x[1]/x[3]),
+                men=apply(prop,2,function(x) x[2]/x[4]))
+dat$cell<-rownames(dat)
+ggplot(reshape2::melt(dat),
+       aes(x=variable, y=value,fill=variable))+
+  facet_grid(~cell)+
+  geom_bar(stat="identity")+
+  scale_fill_manual(values = c("#B07AA1", "#D4A6C8"))+
+  geom_hline(yintercept=0)+
+  labs(x=NULL)+
+  theme_classic()+
+  theme(panel.grid = element_blank(),
+        axis.line.x = element_blank(),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank())
+ggsave("./result/dc/prop1.pdf",width = 8,height = 4)
+
+
+dc.int_brain<-subset(dc.int,type %in% c("AD_brain","N_brain"))
+Idents(dc.int_brain)<-dc.int_brain$type
+
+dc.int_men<-subset(dc.int,type %in% c("AD_Men","N_Men"))
+Idents(dc.int_men)<-dc.int_men$type
+
+##这一步不为筛选差异基因，只为比较不同免疫细胞群中基因分布差异
+##所以min.pct = 0,logfc.threshold = 0
+degs_brain<-FindMarkers(dc.int_brain[,dc.int_brain$cell=="cDC1"],
+                        ident.1 = c('AD_brain'),ident.2 = c('N_brain'),
+                        min.pct = 0,logfc.threshold = 0)
+
+degs_men<-FindMarkers(dc.int_men[,dc.int_men$cell=="cDC1"],
+                      ident.1 = c('AD_Men'),ident.2 = c('N_Men'),
+                      min.pct = 0,logfc.threshold = 0)
+
+degs_men<-degs_men[match(rownames(degs_brain),rownames(degs_men)),]
+index<-union(which(degs_brain$p_val<=0.05),which(degs_men$p_val<=0.05))
+degs<-na.omit(data.frame(degs_brain,degs_men)[index,])
+degs$sig<-ifelse(degs$p_val<=0.05 & degs$p_val.1<=0.05,"both",
+                 ifelse(degs$p_val<=0.05 & degs$p_val.1>0.05,"brain","men"))
+library(ggpubr)
+ggplot(degs, aes(x=avg_log2FC, y=avg_log2FC.1)) + 
+  geom_point(aes(colour = sig), size = 3) +
+  xlab("Brain Log2 FC")+ylab("Meningeal Log2 FC")+
+  theme_bw()+
+  theme(panel.grid = element_blank())+
+  scale_color_manual(values = c("firebrick3","salmon", "#eda1aa"))+
+  geom_smooth(method = lm, se = FALSE, colour = "darkblue")+
+  stat_cor()
+ggsave("./result/dc/cdc1 correlation.pdf",width = 5,height = 5)
+
+
+library(org.Mm.eg.db)
+library(clusterProfiler)
+library(enrichplot)
+gmt <- read.gmt("./data/mh.all.v2024.1.Mm.symbols.gmt")
+m5 <- read.gmt("./data/m5.all.v2024.1.Mm.symbols.gmt")
+m2 <- read.gmt("./data/m2.cp.v2024.1.Mm.symbols.gmt")
+
+Idents(dc.int)<-"cell"
+cdc2_m = FindMarkers(dc.int,ident.1 = 'cDC2',only.pos=T,
+                     min.pct = 0.25,logfc.threshold = 0.25)
+cdc2_marker = filter(cdc2_m,p_val_adj <= 0.05)
+cdc2_marker$SYMBOL = rownames(cdc2_marker)
+names(cdc2_marker)[2] = c("logFC" )
+
+cdc2_marker <- cdc2_marker %>% arrange(desc(logFC))
+geneList = cdc2_marker$logFC 
+names(geneList) <- cdc2_marker$SYMBOL 
+
+cdc2_gsea <- GSEA(geneList,TERM2GENE = gmt,pvalueCutoff = 1) 
+library(GseaVis)
+library(ggsci)
+gseaNb(object = cdc2_gsea,addPval = T,
+       geneSetID =cdc2_gsea@result$ID[1])
+
+cdc2_gsea1 <- GSEA(geneList,TERM2GENE = m5) #0
+cdc2_gsea2 <- GSEA(geneList,TERM2GENE = m2) 
+cdc2_gsea2<-cdc2_gsea2@result
+ggplot(cdc2_gsea2)+  
+  geom_col(aes(reorder(Description, NES), NES, fill = -1*log10(p.adjust)))+  
+  
+  geom_segment(aes(y = 0, yend = 0,x = 0, 
+                   xend = nrow(cdc2_gsea2)+1))+ 
+  theme_classic()+  
+  coord_flip()+  # 调整主题：  
+  theme( #legend.position = "none",    # 标题居中：    
+    plot.title = element_text(hjust = 0.5),    
+    axis.line.y = element_blank(),    
+    axis.title.y = element_blank(),    
+    axis.ticks.y = element_blank(),    
+    axis.text.y = element_blank())+    
+  geom_text(data=subset(cdc2_gsea2,NES >0),
+            aes(x = Description, y = -0.1, label =Description),
+            hjust = 1, size = 4)+  
+  scale_x_discrete(expand=expansion(add=c(0,1.5)))
+ggsave("./result/T/cdc2_m2_cp.pdf",width = 9,height = 6)
+
+
+cdc1_m = FindMarkers(dc.int,ident.1 = 'cDC1',only.pos=T,
+                     min.pct = 0.25,logfc.threshold = 0.25)
+cdc1_marker = filter(cdc1_m,p_val_adj <= 0.05)
+cdc1_marker$SYMBOL = rownames(cdc1_marker)
+names(cdc1_marker)[2] = c("logFC" )
+
+cdc1_marker <- cdc1_marker %>% arrange(desc(logFC))
+geneList = cdc1_marker$logFC 
+names(geneList) <- cdc1_marker$SYMBOL 
+
+cdc1_gsea <- GSEA(geneList,TERM2GENE = gmt) #0
+
+cdc1_gsea1 <- GSEA(geneList,TERM2GENE = m5) #0
+
+cdc1_gsea2 <- GSEA(geneList,TERM2GENE = m2) #0
+
+
+DC_activation<- trimws(c("FSCN1", "BIRC3", "LAMP3", "CCL19", "LAD1", "MARCKS", "TNFAIP2", "CCR7", "CCL22", 
+                         "MARCKSL1", "EBI3", "TNFRSF11B", "NUB1", "INSM1", "RAB9A", "LY75", "SIAH2", "POGLUT1", 
+                         "KDM2B", "MGLL", "TXN", "MLLT6", "KIF2A", "GRSF1", "FAM49A", "PLEKHG1", "SOCS2", 
+                         "RFTN1", "AC009812.4", "BMP2K", "NAV1", "IL7R", "ID2", "CCL17", "PPP1R9B", "NRP2", 
+                         "TUBB6", "ARNTL2", "UVRAG", "TXNDC11", "MREG", "BTG1"))
+DC_migration<- trimws(c("GAL3ST", "NUDT17", "ITGB8", "ADCY6", "ENO2", "IL15RA", "SOCS2", "IL15", "STAP2", 
+                        "PHF24", "ANKRD33B", "INSM1", "ANXA3", "ARHGAP28", "RNF115", "ADORA2A", "EXTL1", 
+                        "SPSB", "SLC22A23", "RABGAP1", "GYG1", "DAP", "OGFR", "GYG2", "CCSER2", 
+                        "TMEM123", "NET1", "GPR52", "SLCO5A1", "FAH", "CLU", "PCGF5", "SAMSN1", 
+                        "CDKN2B", "BMP2K", "ZC2HC1A", "SERINC5", "HIVEP1", "CNR1", "CNR2"))
+DC_tolorgenic<- trimws(c("STAB1", "ANXA1", "IDO1", "IL10", "IL27", "STAT3", "ENTPD1", "SOCS2", "CCR7", 
+                         "CD274", "FTL", "IRF1", "IRF2"))
+MHC = c('HLA-A','HLA-B','HLA-C','HLA-E','HLA-F',
+        'HLA-DOA','HLA-DQA2','HLA-DMA','HLA-DQA1','HLA-DQB2','HLA-DPA1','HLA-DRA','HLA-DOB','HLA-DMB',
+        'HLA-DPB1','HLA-DQB1','HLA-DPA1','HLA-DRA','HLA-DRB1','HLA-DRB5')
+
+#Human转mouse
+require("biomaRt")
+human<-useMart("ensembl",dataset="hsapiens_gene_ensembl",host="https://dec2021.archive.ensembl.org/")
+mouse<-useMart("ensembl",dataset="mmusculus_gene_ensembl",host="https://dec2021.archive.ensembl.org/")
+DC_migration1<-getLDS(attributes=c("hgnc_symbol"),filters="hgnc_symbol",
+                      values=DC_migration,mart=human,
+                      attributesL=c("mgi_symbol"),martL=mouse,
+                      uniqueRows=T)
+DC_tolorgenic1<-getLDS(attributes=c("hgnc_symbol"),filters="hgnc_symbol",
+                       values=DC_tolorgenic,mart=human,
+                       attributesL=c("mgi_symbol"),martL=mouse,
+                       uniqueRows=T)
+DC_activation1<-getLDS(attributes=c("hgnc_symbol"),filters="hgnc_symbol",
+                       values=DC_activation,mart=human,
+                       attributesL=c("mgi_symbol"),martL=mouse,
+                       uniqueRows=T)
+mhc1<-getLDS(attributes=c("hgnc_symbol"),filters="hgnc_symbol",
+             values=MHC,mart=human,
+             attributesL=c("mgi_symbol"),martL=mouse,
+             uniqueRows=T)
+DC_signature = list(DC_activation1$MGI.symbol %>% as.character(),
+                    DC_migration1$MGI.symbol %>% as.character(),
+                    DC_tolorgenic1$MGI.symbol %>% as.character(),
+                    m5$gene[m5$term %in%"GOBP_DENDRITIC_CELL_ANTIGEN_PROCESSING_AND_PRESENTATION"])
+library(irGSEA)
+dc_score<-irGSEA.score(dc.int, assay = "RNA",
+                       geneset =DC_signature, 
+                       slot = "data", seeds = 1, ncores = 1,
+                       min.cells = 3, min.feature = 0,
+                       custom = T,  msigdb = T, 
+                       species = "Mus musculus", category = "H",  
+                       subcategory = NULL, geneid = "symbol",
+                       method = c("AUCell", "UCell", "singscore","ssgsea"),
+                       aucell.MaxRank = NULL, ucell.MaxRank = NULL, 
+                       kcdf = 'Gaussian')
+dc.int$act<-dc_score@assays$AUCell$data[1,]
+dc.int$mig<-dc_score@assays$AUCell$data[2,]
+dc.int$tol<-dc_score@assays$AUCell$data[3,]
+dc.int$ap<-dc_score@assays$AUCell$data[4,]
+
+library(ggridges)
+p1<-ggplot(dc.int@meta.data,aes(x = cell, y =act,
+                                color=cell,fill=cell)) +
+  geom_violin(trim = T,alpha=0.7) + # trim参数设置为FALSE以展示整个分布
+  geom_boxplot(width = 0.1, fill = "white") + # 在小提琴图内部添加箱线图
+  labs(x = "", y = "Activition Score") +theme_classic()+
+  theme(legend.position = "none", 
+        axis.title.y = element_text(size = 10), 
+        axis.text.y = element_text(size = 10),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        axis.line = element_line(colour = "black"))+
+  scale_color_manual(values=mycol3)+
+  scale_fill_manual(values=mycol3)+
+  stat_compare_means()
+p2<-ggplot(dc.int@meta.data,aes(x = cell, y =mig,
+                                color=cell,fill=cell)) +
+  geom_violin(trim = T,alpha=0.7) + # trim参数设置为FALSE以展示整个分布
+  geom_boxplot(width = 0.1, fill = "white") + # 在小提琴图内部添加箱线图
+  labs(x = "", y = "Migration Score") +theme_classic()+
+  theme(legend.position = "none", 
+        axis.title.y = element_text(size = 10), 
+        axis.text.y = element_text(size = 10),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        axis.line = element_line(colour = "black"))+
+  scale_color_manual(values=mycol3)+
+  scale_fill_manual(values=mycol3)+
+  stat_compare_means()
+p3<-ggplot(dc.int@meta.data,aes(x = cell, y =tol,
+                                color=cell,fill=cell)) +
+  geom_violin(trim = T,alpha=0.7) + # trim参数设置为FALSE以展示整个分布
+  geom_boxplot(width = 0.1, fill = "white") + # 在小提琴图内部添加箱线图
+  labs(x = "", y = "Tolorgenic Score") +theme_classic()+
+  theme(legend.position = "none", 
+        axis.title.y = element_text(size = 10), 
+        axis.text.y = element_text(size = 10),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        axis.line = element_line(colour = "black"))+
+  scale_color_manual(values=mycol3)+
+  scale_fill_manual(values=mycol3)+
+  stat_compare_means()
+p4<-ggplot(dc.int@meta.data,aes(x = cell, y =ap,
+                                color=cell,fill=cell)) +
+  geom_violin(trim = T,alpha=0.7) + # trim参数设置为FALSE以展示整个分布
+  geom_boxplot(width = 0.1, fill = "white") + # 在小提琴图内部添加箱线图
+  labs(x = "", y = "Antigen processing and presentation") +theme_classic()+
+  theme(legend.position = "none", 
+        axis.title.y = element_text(size = 10), 
+        axis.text.y = element_text(size = 10),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        axis.line = element_line(colour = "black"))+
+  scale_color_manual(values=mycol3)+
+  scale_fill_manual(values=mycol3)+
+  stat_compare_means()
+pdf("./result/dc/marker.pdf",height = 9,width = 4)
+p1/p2/p3/p4
+dev.off()
+
+
+HLA = AverageExpression(dc.int,features =mhc1$MGI.symbol,group.by = 'cell')
+match(c("H2-Q2","Gm8909"),rownames(HLA$RNA))
+anno_row<-data.frame(type=ifelse(mhc1$HGNC.symbol[match(rownames(HLA$RNA),mhc1$MGI.symbol)]=="HLA-E",
+                                 "MHCI","MHCII"))
+rownames(anno_row)<-rownames(HLA$RNA)
+
+pheatmap(as.matrix(HLA$RNA)[-c(10,21),], border=F,
+         color  = colorRampPalette(c('#2E80B9','white','#D84234'))(100),scale = 'row',
+         cluster_cols = F, cluster_rows = T,
+         annotation_row = anno_row,
+         show_rownames = T, show_colnames = T)
+
+library(GSVA)
+Idents(dc.int)<-'cell'
+dc_marker1 = FindAllMarkers(dc.int, only.pos = T, min.pct = 0.25, logfc.threshold = 0.25)
+dc_marker1 = dc_marker1 %>% dplyr::select(gene, everything()) %>%
+  subset(p_val_adj<=0.05)
+ssGSEA_Score = gsva(as.matrix(log2(exp_symbol_fpkm+1)), 
+                    list(cDC2=dc_marker1$gene[dc_marker1$cluster=="cDC2"],
+                         cDC1=dc_marker1$gene[dc_marker1$cluster=="cDC1"],
+                         pDC=dc_marker1$gene[dc_marker1$cluster=="pDC"],
+                         migDC=dc_marker1$gene[dc_marker1$cluster=="migDC"]
+                    ), 
+                    method='ssgsea', kcdf='Gaussian', abs.ranking=TRUE) 
+ssGSEA_Score = as.data.frame(t(ssGSEA_Score)) 
+
+identical(rownames(ssGSEA_Score),rownames(anno_col))
+ssGSEA_Score1<-data.frame(ssGSEA_Score,anno_col)
+ssGSEA_Score1$region<-factor(ssGSEA_Score1$region,levels = c("H","P","L"))
+ssGSEA_Score1$region1<-ifelse(ssGSEA_Score1$region=="L","L","H/P")
+
+# 进行富集分析
+library(limma)
+# 设定分组
+design <- model.matrix(~0+ssGSEA_Score1$type)
+colnames(design) = levels(factor(ssGSEA_Score1$type))
+rownames(design) = rownames(ssGSEA_Score1)
+colnames(design) <- gsub("--", "_", colnames(design))
+
+fit=lmFit(t(ssGSEA_Score1[,1:4]),design)
+fit2=contrasts.fit(fit,makeContrasts('`H_AD`-`H_WT`',levels = design))
+fit2=eBayes(fit2)
+fit3=contrasts.fit(fit,makeContrasts('`P_AD`-`P_WT`',levels = design))
+fit3=eBayes(fit3)
+fit4=contrasts.fit(fit,makeContrasts('`L_AD`-`L_WT`',levels = design))
+fit4=eBayes(fit4)
+pathway_res<-rbind.data.frame(data.frame(term="H",cell=rownames(topTable(fit2)),topTable(fit2)),
+                              data.frame(term="P",cell=rownames(topTable(fit3)),topTable(fit3)),
+                              data.frame(term="L",cell=rownames(topTable(fit4)),topTable(fit4)))
+pathway_res$term<-factor(pathway_res$term,levels = c("H","P","L"))
+pathway_res$label<-NA
+pathway_res$label[pathway_res$P.value<0.1 & pathway_res$P.value>=0.05]<-"."
+pathway_res$label[pathway_res$P.value<0.05 &pathway_res$P.value>=0.01]<-"*"
+pathway_res$label[pathway_res$P.value<0.01 &pathway_res$P.value>=0.001]<-"**"
+pathway_res$label[pathway_res$P.value<0.001]<-"***"
+
+ggplot(pathway_res,
+       aes(x=term, y=t,fill=term))+
+  facet_grid(~cell)+
+  geom_bar(stat="identity")+
+  scale_fill_manual(values = c("#FED439FF", "#D2AF81FF","#709AE1FF" ))+
+  geom_hline(yintercept=0)+
+  labs(x=NULL,y="t value of GSVA score")+     
+  geom_text(aes(label=label,vjust=-0.3),size=6)+  
+  theme_bw()+
+  theme(
+    panel.grid = element_blank(),
+    axis.line.x = element_blank(),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank())
+ggsave("./result/dc/all_limma.pdf",width = 8,height=5)
+
+ggplot(pathway_res[grep("cDC2",rownames(pathway_res)),],
+       aes(x=term, y=t,fill=term))+
+  geom_bar(stat="identity")+
+  scale_fill_manual(values = c("#FED439FF", "#D2AF81FF","#709AE1FF" ))+
+  geom_hline(yintercept=0)+
+  labs(x=NULL,y="t value of GSVA score")+     
+  geom_text(aes(label=adj.P.Val,vjust=-0.3),size=6)+  
+  theme_bw()+
+  theme(
+    panel.grid = element_blank(),
+    axis.line.x = element_blank(),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank())
+ggsave("./result/dc/cdc2_all_limma.pdf",width = 5,height=5)
+
+ggplot(pathway_res[grep("cDC1",rownames(pathway_res)),],
+       aes(x=term, y=t,fill=term))+
+  geom_bar(stat="identity")+
+  scale_fill_manual(values = c("#FED439FF", "#D2AF81FF","#709AE1FF" ))+
+  geom_hline(yintercept=0)+
+  labs(x=NULL,y="t value of GSVA score")+     
+  geom_text(aes(label=adj.P.Val,vjust=-0.3),size=6)+  
+  theme_bw()+
+  theme(
+    panel.grid = element_blank(),
+    axis.line.x = element_blank(),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank())
+ggsave("./result/dc/cdc1_all_limma.pdf",width = 5,height=5)
+
+
+type=as.character(anno_col$type)
+type<-ifelse(type %in% c("H--AD","P--AD"),"brain_AD",type)
+type<-ifelse(type %in% c("H--WT","P--WT"),"brain_WT",type)
+design <- model.matrix(~0+type)
+colnames(design) = levels(factor(type))
+rownames(design) = rownames(anno_col)
+colnames(design) <- gsub("--", "_", colnames(design))
+fit=lmFit(t(ssGSEA_Score1[,1:4]),design)
+fit2=contrasts.fit(fit,makeContrasts('`brain_AD`-`brain_WT`',levels = design))
+fit2=eBayes(fit2)
+fit4=contrasts.fit(fit,makeContrasts('`L_AD`-`L_WT`',levels = design))
+fit4=eBayes(fit4)
+pathway_res<-rbind.data.frame(data.frame(term="brain",cell=rownames(topTable(fit2)),topTable(fit2)),
+                              data.frame(term="L",cell=rownames(topTable(fit4)),topTable(fit4)))
+pathway_res$label<-NA
+pathway_res$label[pathway_res$P.value<0.1 & pathway_res$P.value>=0.05]<-"."
+pathway_res$label[pathway_res$P.value<0.05 &pathway_res$P.value>=0.01]<-"*"
+pathway_res$label[pathway_res$P.value<0.01 &pathway_res$P.value>=0.001]<-"**"
+pathway_res$label[pathway_res$P.value<0.001]<-"***"
+ggplot(pathway_res,
+       aes(x=term, y=t,fill=term))+
+  facet_grid(~cell)+
+  geom_bar(stat="identity")+
+  scale_fill_manual(values = c( "#D2AF81FF","#709AE1FF" ))+
+  geom_hline(yintercept=0)+
+  labs(x=NULL,y="t value of GSVA score")+     
+  geom_text(aes(label=label,vjust=-0.3),size=6)+  
+  theme_bw()+
+  theme(
+    panel.grid = element_blank(),
+    axis.line.x = element_blank(),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank())
+ggsave("./result/dc/all_limma1.pdf",width = 8,height=5)
+
+
+ggplot(pathway_res[grep("cDC2",rownames(pathway_res)),],
+       aes(x=term, y=t,fill=term))+
+  geom_bar(stat="identity")+
+  scale_fill_manual(values = c( "#D2AF81FF","#709AE1FF" ))+
+  geom_hline(yintercept=0)+
+  labs(x=NULL,y="t value of GSVA score")+     
+  geom_text(aes(label=adj.P.Val,vjust=-0.3),size=6)+  
+  theme_bw()+
+  theme(
+    panel.grid = element_blank(),
+    axis.line.x = element_blank(),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank())
+ggsave("./result/dc/cdc2_all_limma1.pdf",width = 5,height=5)
+
+ggplot(pathway_res[grep("cDC1",rownames(pathway_res)),],
+       aes(x=term, y=t,fill=term))+
+  geom_bar(stat="identity")+
+  scale_fill_manual(values = c( "#D2AF81FF","#709AE1FF" ))+
+  geom_hline(yintercept=0)+
+  labs(x=NULL,y="t value of GSVA score")+     
+  geom_text(aes(label=adj.P.Val,vjust=-0.3),size=6)+  
+  theme_bw()+
+  theme(
+    panel.grid = element_blank(),
+    axis.line.x = element_blank(),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank())
+ggsave("./result/dc/cdc1_all_limma1.pdf",width = 5,height=5)
+
+
+dat<-data.frame(h=apply(ssGSEA_Score,2,function(x) mean(x[anno_col$type=="H--AD"])/mean(x[anno_col$type=="H--WT"])),
+                p=apply(ssGSEA_Score,2,function(x) mean(x[anno_col$type=="P--AD"])/mean(x[anno_col$type=="P--WT"])),
+                l=apply(ssGSEA_Score,2,function(x) mean(x[anno_col$type=="L--AD"])/mean(x[anno_col$type=="L--WT"])),
+                h_tp=round(apply(ssGSEA_Score,2,function(x) t.test(x[anno_col$type=="H--AD"],x[anno_col$type=="H--WT"])$p.value),4),
+                p_tp=round(apply(ssGSEA_Score,2,function(x) t.test(x[anno_col$type=="P--AD"],x[anno_col$type=="P--WT"])$p.value),4),
+                l_tp=round(apply(ssGSEA_Score,2,function(x) t.test(x[anno_col$type=="L--AD"],x[anno_col$type=="L--WT"])$p.value),4))
+dat$cell<-rownames(dat)
+dat_long<-data.frame(reshape2::melt(dat[,c(1:3,7)]),p=reshape2::melt(dat[,c(4:6,7)])$value)
+dat_long$label<-NA
+dat_long$label[dat_long$p<0.1 & dat_long$p>=0.05]<-"."
+dat_long$label[dat_long$p<0.05 & dat_long$p>=0.01]<-"*"
+dat_long$label[dat_long$p<0.01 & dat_long$p>=0.001]<-"**"
+dat_long$label[dat_long$p<0.001]<-"***"
+
+ggplot(dat_long,
+       aes(x=variable, y=value,fill=variable))+
+  facet_grid(~cell)+
+  geom_bar(stat="identity")+
+  scale_fill_manual(values = c("#FED439FF" , "#D2AF81FF","#709AE1FF" ))+
+  geom_hline(yintercept=0)+
+  labs(x=NULL,y="Fold change")+     
+  geom_text(aes(label=label,vjust=-0.3),size=6)+  
+  theme_bw()+
+  theme(
+    panel.grid = element_blank(),
+    axis.line.x = element_blank(),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank())
+ggsave("./result/dc/cell_all.pdf",width = 5,height=5)
+
+dat1<-data.frame(hp=apply(ssGSEA_Score,2,function(x) mean(x[anno_col$type %in% c("H--AD","P--AD")])/mean(x[anno_col$type %in% c("H--WT","P--WT")])),
+                 l=apply(ssGSEA_Score,2,function(x) mean(x[anno_col$type=="L--AD"])/mean(x[anno_col$type=="L--WT"])),
+                 hp_tp=round(apply(ssGSEA_Score,2,function(x) t.test(x[anno_col$type%in% c("H--AD","P--AD")],x[anno_col$type%in% c("H--WT","P--WT")])$p.value),4),
+                 l_tp=round(apply(ssGSEA_Score,2,function(x) t.test(x[anno_col$type=="L--AD"],x[anno_col$type=="L--WT"])$p.value),4))
+dat1$cell<-rownames(dat1)
+dat_long<-data.frame(reshape2::melt(dat1[,c(1:2,5)]),p=reshape2::melt(dat1[,c(3:5)])$value)
+dat_long$label<-NA
+dat_long$label[dat_long$p<0.1 & dat_long$p>=0.05]<-"."
+dat_long$label[dat_long$p<0.05 & dat_long$p>=0.01]<-"*"
+dat_long$label[dat_long$p<0.01 & dat_long$p>=0.001]<-"**"
+dat_long$label[dat_long$p<0.001]<-"***"
+ggplot(dat_long,
+       aes(x=variable, y=value,fill=variable))+
+  facet_grid(~cell)+
+  geom_bar(stat="identity")+
+  scale_fill_manual(values = c("#D2AF81FF","#709AE1FF" ))+
+  geom_hline(yintercept=0)+
+  labs(x=NULL,y="Fold change")+     
+  geom_text(aes(label=label,vjust=-0.3),size=6)+  
+  theme_bw()+
+  theme(
+    panel.grid = element_blank(),
+    axis.line.x = element_blank(),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank())
+
+library(GSVA)
+T_marker1<-readxl::read_xlsx("./result/T_marker1.xlsx")
+ssGSEA_Score_t = gsva(as.matrix(log2(exp_symbol_fpkm+1)), 
+                      list(th=T_marker1$gene[T_marker1$cluster=="Th"],
+                           cd4tn=T_marker1$gene[T_marker1$cluster=="CD4Tn"]), 
+                      method='ssgsea', kcdf='Gaussian', abs.ranking=TRUE) 
+ssGSEA_Score_t = as.data.frame(t(ssGSEA_Score_t)) 
+
+
+identical(rownames(ssGSEA_Score_t),rownames(ssGSEA_Score))
+
+p7<-ggplot(data.frame(ssGSEA_Score,ssGSEA_Score_t),
+           aes(x=th, y=cDC2)) + 
+  geom_point( size = 3) +
+  xlab("Estimate of Th")+ylab("Estimate of cDC2")+
+  theme_bw()+
+  theme(panel.grid = element_blank())+
+  geom_smooth(method = lm, se = FALSE, colour = "darkblue")+
+  stat_cor()
+p8<-ggplot(data.frame(ssGSEA_Score,ssGSEA_Score_t),
+           aes(x=th, y=cDC1)) + 
+  geom_point( size = 3) +
+  xlab("Estimate of Th")+ylab("Estimate of cDC1")+
+  theme_bw()+
+  theme(panel.grid = element_blank())+
+  geom_smooth(method = lm, se = FALSE, colour = "darkblue")+
+  stat_cor()
+p9<-ggplot(data.frame(ssGSEA_Score,ssGSEA_Score_t),
+           aes(x=cd4tn, y=cDC2)) + 
+  geom_point( size = 3) +
+  xlab("Estimate of CD4Tn")+ylab("Estimate of cDC2")+
+  theme_bw()+
+  theme(panel.grid = element_blank())+
+  geom_smooth(method = lm, se = FALSE, colour = "darkblue")+
+  stat_cor()
+p10<-ggplot(data.frame(ssGSEA_Score,ssGSEA_Score_t),
+            aes(x=cd4tn, y=cDC1)) + 
+  geom_point( size = 3) +
+  xlab("Estimate of CD4Tn")+ylab("Estimate of cDC1")+
+  theme_bw()+
+  theme(panel.grid = element_blank())+
+  geom_smooth(method = lm, se = FALSE, colour = "darkblue")+
+  stat_cor()
+p7+p8+p9+p10
+
+
+
+
+library(dplyr)
+library(plyr)
+library(Seurat)
+Bcell<-subset(brain_select,cell=="B")
+Bcell<-subset(Bcell,doubFind_res=="Singlet")
+Bcell.int<-CreateSeuratObject(split(Bcell[["RNA"]],f=Bcell$orig.ident))
+
+Bcell.int<-NormalizeData(Bcell.int, normalization.method = "LogNormalize", scale.factor = 10000) %>%
+  FindVariableFeatures() %>%
+  ScaleData(features = rownames(.)) %>%  
+  RunPCA(features = VariableFeatures(.)) 
+ElbowPlot(Bcell.int, ndims = 50)
+
+Bcell.int<-IntegrateLayers(Bcell.int,method = HarmonyIntegration,
+                           orig.reduction = "pca", new.reduction = "harmony",
+                           verbose = FALSE) %>%
+  JoinLayers()
+
+Bcell.int<-FindNeighbors(Bcell.int,reduction = 'harmony', dims = 1:30)
+
+Bcell.int<-FindClusters(Bcell.int, resolution =c(0.01, 0.05, 0.1, 0.2, 0.3, 0.4,0.5))
+library(clustree)
+#pdf("./result/b/B_clustree.pdf",width = 6,height = 6)
+#clustree(Bcell.int@meta.data, prefix = "RNA_snn_res.")
+#dev.off()
+
+Bcell.int<-FindClusters(Bcell.int,resolution=0.2) %>%
+  RunUMAP(reduction = "harmony", dims = 1:30)%>%
+  RunTSNE(reduction = "harmony", dims = 1:30)
+
+B_marker = FindAllMarkers(Bcell.int, only.pos = T, min.pct = 0.25, logfc.threshold = 0.25)
+B_marker$pct<-B_marker$pct.1-B_marker$pct.2
+B_top = B_marker %>% group_by(cluster) %>% top_n(n = 5, wt = avg_log2FC ) 
+B_top20 = B_marker %>% group_by(cluster) %>% top_n(n = 20, wt = avg_log2FC ) 
+marker<-c( "Cd93",'Atp1b1',"Vpreb3","Il2ra",##'Rag1',"Il7r",
+  #10.4103/1673-5374.371365 MLB
+  'C1qa','Hexb','Tyrobp',
+  "Tnfrsf13c","Ighm","Ms4a1",
+  "Fcer2a","Cd69","Lmo2",
+  "Irf7","Plaur","Satb1","Gch1",#"Tmed2",
+  'Bhlhe41', 'Cd9',"Zbtb32"#,"Spn","Cd5"
+  
+)
+
+Bcell.int@meta.data[Bcell.int$seurat_clusters ==0, 'cell'] = 'Bn'
+Bcell.int@meta.data[Bcell.int$seurat_clusters ==1, 'cell'] = 'FoB'
+Bcell.int@meta.data[Bcell.int$seurat_clusters ==2, 'cell'] = 'immature'
+Bcell.int@meta.data[Bcell.int$seurat_clusters ==3, 'cell'] = 'Pre-B'
+Bcell.int@meta.data[Bcell.int$seurat_clusters ==4, 'cell'] = 'B1a'
+Bcell.int@meta.data[Bcell.int$seurat_clusters ==5, 'cell'] = 'MLB'
+Bcell.int$type<-brain_select$type[match(colnames(Bcell.int),colnames(brain_select))]
+
+
+
+library(ggplot2)
+DotPlot(Bcell.int, features =unique(marker),  col = "RdYlBu", 
+        group.by = "cell",  
+        col.min = -1.5, col.max = 1.5, scale.max = 50) + 
+  theme(#legend.position = "none", 
+    axis.ticks.x = element_blank(), 
+    axis.title.y = element_text(size = 10), 
+    axis.text.y = element_text(size = 10),
+    axis.text.x = element_text(angle = 90,hjust = 0.5,vjust=0.5),
+    axis.line = element_blank(), 
+    panel.border = element_rect(colour = "black", fill = NA, size = 1)) + 
+  labs(x = NULL, y = NULL)
+
+A<-AverageExpression(Bcell.int, features =marker,group.by = 'cell')$RNA %>%
+  as.data.frame()
+A<-A[match(marker,rownames(A)),]
+library(pheatmap)
+pheatmap(A, border=F,
+         color  = colorRampPalette(c('#000015','#5A5AB3','white','#FDBA40','#FF3F00'))(100),
+         scale = 'row',breaks = c(seq(-2,2,length=100)),
+         cluster_cols = F, cluster_rows = F,
+         show_rownames = T, show_colnames = T)
+
+library(cols4all)
+c4a_gui()
+pdf("./result/b/umap.pdf",width = 5,height = 5)
+DimPlot(Bcell.int, reduction = "umap",group.by = 'cell',
+        cols =  c('#BEBCDE','#3C86BD','#9ECBE2','#8C6CAF','#BC80BD',"#FDB462"),label=TRUE,
+        label.box = TRUE, label.size = 3) + ggtitle(NULL) & NoLegend() & NoAxes()
+dev.off()
+
+
+plot1<-FeaturePlot(Bcell.int,features = "Ighm",reduction = "umap",pt.size = 0.0001,max.cutoff = 1.5,
+                   cols = c("#FFEFD5", "#FDB462"))+
+  scale_x_continuous("")+scale_y_continuous("")+ 
+  theme_bw()+
+  theme(  panel.grid.major = element_blank(),panel.grid.minor = element_blank(),
+          axis.ticks = element_blank(),axis.text = element_blank(),    
+          #legend.position = "none",                                       
+          plot.title = element_text(hjust = 0.5,size=14))+ggtitle('Ighm')
+plot2<-FeaturePlot(Bcell.int,features = "Ighd",reduction = "umap",pt.size = 0.0001,max.cutoff = 1.5,
+                   cols = c("#FFEFD5","#BC80BD"))+
+  scale_x_continuous("")+scale_y_continuous("")+ 
+  theme_bw()+
+  theme(  panel.grid.major = element_blank(),panel.grid.minor = element_blank(),
+          axis.ticks = element_blank(),axis.text = element_blank(),    
+          #legend.position = "none",                                       
+          plot.title = element_text(hjust = 0.5,size=14))+ggtitle('Ighd')
+plot3<-FeaturePlot(Bcell.int,features = "Cd19",reduction = "umap",pt.size = 0.0001,max.cutoff = 1.5,
+                   cols = c("#FFEFD5","#FCCDE5"))+
+  scale_x_continuous("")+scale_y_continuous("")+ 
+  theme_bw()+
+  theme(  panel.grid.major = element_blank(),panel.grid.minor = element_blank(),
+          axis.ticks = element_blank(),axis.text = element_blank(),    
+          #legend.position = "none",                                       
+          plot.title = element_text(hjust = 0.5,size=14))+ggtitle('Cd19')
+
+VlnPlot(Bcell.int, c("Ighm","Ighd","Igha"), 
+        group.by = 'cell', cols = mycol3,
+        pt.size=0) & 
+  NoLegend() & 
+  theme(axis.title=element_blank(), axis.text=element_text(size=10))
+
+library(monocle)
+exp <- as(as.matrix(Bcell.int[["RNA"]]$counts),'sparseMatrix')
+pd <- new('AnnotatedDataFrame', data = Bcell.int@meta.data)
+fData <- data.frame(gene_short_name = row.names(exp), row.names = row.names(exp))
+fd <- new('AnnotatedDataFrame', data = fData)
+cds <- newCellDataSet(exp,phenoData = pd,featureData = fd,                       
+                      expressionFamily=VGAM::negbinomial.size(),                       
+                      lowerDetectionLimit=1)
+# 数据预处理
+cds <- estimateSizeFactors(cds)
+cds <- estimateDispersions(cds)
+diff_test<- differentialGeneTest(cds,fullModelFormulaStr = " ~ cell + orig.ident", 
+                                 reducedModelFormulaStr = " ~ orig.ident", 
+                                 cores = 4)
+ordering_genes <- row.names(subset(diff_test, qval < 0.01))
+cds <- setOrderingFilter(cds, ordering_genes)
+plot_ordering_genes(cds)
+### Trajectory step 2: reduce data dimensionality
+### Trajectory step 3: order cells along the trajectory
+cds <- reduceDimension(cds,residualModelFormulaStr = "~orig.ident")
+cds <- orderCells(cds)
+# 3.celltype
+plot_cell_trajectory(cds,color_by="Pseudotime")
+plot_cell_trajectory(cds, color_by = 'cell')+
+  scale_color_manual(values=c('#BEBCDE','#3C86BD','#9ECBE2','#8C6CAF','#BC80BD',"#FDB462"))
+pseudotime_data <- pData(cds)
+p3<-plot_cell_trajectory(cds,color_by="Pseudotime")
+p4<-plot_cell_trajectory(cds, color_by = 'cell')+
+  scale_color_manual(values=c('#BEBCDE','#3C86BD','#9ECBE2','#8C6CAF','#BC80BD',"#FDB462"))
+library(ggridges)
+p5<-ggplot(pseudotime_data,
+           aes(y = cell, x = Pseudotime,
+               color=cell,fill=cell)) +
+  geom_density_ridges(alpha = 0.7,
+                      color= 'white',
+                      rel_min_height= 0.01, #尾部修剪，数值越大修剪程度越高
+                      scale= 1, #山脊重叠程度调整，scale = 1时刚好触及基线，数值越大重叠度越高
+                      quantile_lines= TRUE, #显示分位数线
+                      quantiles= 2 #仅显示中位数线
+  ) +xlab("Pseudotime")+ylab("")+
+  scale_color_manual(values=c('#BEBCDE','#3C86BD','#9ECBE2','#8C6CAF','#BC80BD',"#FDB462"))+
+  scale_fill_manual(values=c('#BEBCDE','#3C86BD','#9ECBE2','#8C6CAF','#BC80BD',"#FDB462"))+
+  theme_classic()+theme(legend.position = "none")
+#pdf("./result/b/trajectory.pdf",width = 8,height = 4)
+p3+p4+p5
+#dev.off()
+
+
+library(CytoTRACE)
+library(dplyr)
+library(ggpubr)
+#计算细胞干性（cytotrace包）
+results <- CytoTRACE(as.data.frame(Bcell.int@assays[["RNA"]]$counts))
+
+# 此图反映了细胞根据干性轨迹的分布
+plotCytoTRACE(results)
+
+#提取出细胞干性得分，重要！！
+boxdata<-data.frame(Cell = names(results$CytoTRACE),cytoTRACE=results$CytoTRACE)
+boxdata$celltype<-Bcell.int@meta.data$cell[match(boxdata$Cell,rownames(Bcell.int@meta.data))]
+library(ggplot2)
+ggplot(boxdata,aes(celltype,cytoTRACE,fill=celltype))+
+  geom_violin(position=position_dodge(width=0.1),scale='width')+
+  geom_boxplot(width=0.3)+
+  theme(legend.position="none",
+        panel.spacing=unit(0,"lines"),
+        plot.title=element_text(hjust=0.5),
+        panel.background=element_rect(fill=NA,color="black"),
+        #plot.margin=margin(6,6,0,6,"pt"),
+        strip.background=element_blank(),
+        strip.text=element_text(face="bold"),
+        strip.text.y.left=element_text(angle=0))+
+  ylab("CytoTRACE score")
+ggsave("./result/B/cytotrace.pdf",width=8,height=5)
+
+cds@phenoData@data$cytotrace <- results$CytoTRACE
+plot_cell_trajectory(cds,color_by="cytotrace")
+
+
+
+
+ggplot(Bcell.int@meta.data, aes(x=type, fill=cell, color=cell)) + geom_bar(position = position_fill(reverse = TRUE), alpha=0.8, width=0.5) + 
+  theme_classic() + scale_fill_manual(values=c('#BEBCDE','#3C86BD','#9ECBE2','#8C6CAF','#BC80BD',"#FDB462"), name= "Cell Types") +
+  scale_color_manual(values=c('#BEBCDE','#3C86BD','#9ECBE2','#8C6CAF','#BC80BD',"#FDB462"), name= "Cell Types") +
+  theme( axis.text.x = element_text(size=10), plot.title = element_text(size = 10, face = "bold", hjust = 0.5)) +
+  labs(x=NULL, y="Percent")
+ggsave("./result/b/prop.pdf",width = 6,height = 4)
+
+
+prop<-prop.table(table(Bcell.int$type,Bcell.int$cell), margin = 1)
+dat<-data.frame(brain=apply(prop,2,function(x) x[1]/x[3]),
+                men=apply(prop,2,function(x) x[2]/x[4]))
+dat$cell<-rownames(dat)
+ggplot(reshape2::melt(dat[-c(3:4),]),
+       aes(x=variable, y=value,fill=variable))+
+  facet_grid(~cell)+
+  geom_bar(stat="identity")+
+  scale_fill_manual(values = c("#B07AA1", "#D4A6C8"))+
+  geom_hline(yintercept=0)+
+  labs(x=NULL)+
+  theme_classic()+
+  theme(panel.grid = element_blank(),
+        axis.line.x = element_blank(),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank())
+ggsave("./result/b/prop1.pdf",width = 8,height = 4)
+
+Bcell.int_brain<-subset(Bcell.int,type %in% c("AD_brain","N_brain"))
+Idents(Bcell.int_brain)<-Bcell.int_brain$type
+
+Bcell.int_men<-subset(Bcell.int,type %in% c("AD_Men","N_Men"))
+Idents(Bcell.int_men)<-Bcell.int_men$type
+
+##这一步不为筛选差异基因，只为比较不同免疫细胞群中基因分布差异
+##所以min.pct = 0,logfc.threshold = 0
+degs_brain<-lapply(unique(Bcell.int_brain$cell)[-2],function(x){
+  FindMarkers(Bcell.int_brain[,Bcell.int_brain$cell==x],
+              ident.1 = c('AD_brain'),ident.2 = c('N_brain'),
+              min.pct = 0,logfc.threshold = 0)
+})
+degs_men<-lapply(unique(Bcell.int_brain$cell)[-2],function(x){
+  FindMarkers(Bcell.int_men[,Bcell.int_men$cell==x],
+              ident.1 = c('AD_Men'),ident.2 = c('N_Men'),
+              min.pct = 0,logfc.threshold = 0)
+})
+degs<-list()
+for(i in 1:5){
+  degs_men[[i]]<-degs_men[[i]][match(rownames(degs_brain[[i]]),rownames(degs_men[[i]])),]
+  index<-union(which(degs_brain[[i]]$p_val<=0.05),which(degs_men[[i]]$p_val<=0.05))
+  degs[[i]]<-na.omit(data.frame(degs_brain[[i]],degs_men[[i]])[index,])
+  degs[[i]]$sig<-ifelse(degs[[i]]$p_val<=0.05 & degs[[i]]$p_val.1<=0.05,"both",
+                        ifelse(degs[[i]]$p_val<=0.05 & degs[[i]]$p_val.1>0.05,"brain","men"))
+}
+names(degs)<-unique(Bcell.int_brain$cell)[-2]
+
+deg_list<-list()
+for(i in 1:5){
+  library(ggpubr)
+  p<-ggplot(degs[[i]], aes(x=avg_log2FC, y=avg_log2FC.1)) + 
+    geom_point(aes(colour = sig), size = 3) +
+    xlab("Brain Log2 FC")+ylab("Meningeal Log2 FC")+
+    theme_bw()+ggtitle(names(degs)[i])+
+    theme(panel.grid = element_blank())+
+    scale_color_manual(values = c("firebrick3","salmon", "#eda1aa"))+
+    geom_smooth(method = lm, se = FALSE, colour = "darkblue")+
+    stat_cor()
+  deg_list[[i]]<-p
+}
+library(cowplot)
+plot_grid(plotlist = deg_list, ncol = 3)
+
+library(GSVA)
+Idents(Bcell.int)="cell"
+B_marker = FindAllMarkers(Bcell.int, only.pos = T, min.pct = 0.25, logfc.threshold = 0.25)
+B_marker1 = B_marker %>% dplyr::select(gene, everything()) %>%
+  subset(p_val_adj<=0.05)
+ssGSEA_Score = gsva(as.matrix(log2(exp_symbol_fpkm+1)), 
+                    list(bn=B_marker1$gene[B_marker1$cluster=="Bn"],
+                         pre=B_marker1$gene[B_marker1$cluster=="Pre-B"],
+                         b1=B_marker1$gene[B_marker1$cluster=="B1a"],
+                         mlb=B_marker1$gene[B_marker1$cluster=="MLB"]), 
+                    method='ssgsea', kcdf='Gaussian', abs.ranking=TRUE) 
+ssGSEA_Score = as.data.frame(t(ssGSEA_Score)) 
+
+
+identical(rownames(ssGSEA_Score),rownames(anno_col))
+ssGSEA_Score1<-data.frame(ssGSEA_Score,anno_col)
+ssGSEA_Score1$region<-factor(ssGSEA_Score1$region,levels = c("H","P","L"))
+ssGSEA_Score1$region1<-ifelse(ssGSEA_Score1$region=="L","L","H/P")
+# 进行富集分析
+library(limma)
+# 设定分组
+design <- model.matrix(~0+ssGSEA_Score1$type)
+colnames(design) = levels(factor(ssGSEA_Score1$type))
+rownames(design) = rownames(ssGSEA_Score1)
+colnames(design) <- gsub("--", "_", colnames(design))
+
+fit=lmFit(t(ssGSEA_Score1[,1:4]),design)
+fit2=contrasts.fit(fit,makeContrasts('`H_AD`-`H_WT`',levels = design))
+fit2=eBayes(fit2)
+fit3=contrasts.fit(fit,makeContrasts('`P_AD`-`P_WT`',levels = design))
+fit3=eBayes(fit3)
+fit4=contrasts.fit(fit,makeContrasts('`L_AD`-`L_WT`',levels = design))
+fit4=eBayes(fit4)
+pathway_res<-rbind.data.frame(data.frame(term="H", cell=rownames(topTable(fit2)),topTable(fit2)),
+                              data.frame(term="P", cell=rownames(topTable(fit3)),topTable(fit3)),
+                              data.frame(term="L", cell=rownames(topTable(fit4)),topTable(fit4)))
+pathway_res$term<-factor(pathway_res$term,levels = c("H","P","L"))
+pathway_res$label<-NA
+pathway_res$label[pathway_res$P.Value<0.1 & pathway_res$P.Value>=0.05]<-"."
+pathway_res$label[pathway_res$P.Value<0.05 &pathway_res$P.Value>=0.01]<-"*"
+pathway_res$label[pathway_res$P.Value<0.01 &pathway_res$P.Value>=0.001]<-"**"
+pathway_res$label[pathway_res$P.Value<0.001]<-"***"
+
+ggplot(pathway_res,
+       aes(x=term, y=t,fill=term))+
+  geom_bar(stat="identity")+facet_grid(~cell)+
+  scale_fill_manual(values = c("#FED439FF", "#D2AF81FF","#709AE1FF" ))+
+  geom_hline(yintercept=0)+
+  labs(x=NULL,y="t value of GSVA score")+     
+  geom_text(aes(label=label,vjust=-0.3),size=6)+  
+  theme_bw()+
+  theme(
+    panel.grid = element_blank(),
+    axis.line.x = element_blank(),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank())
+ggsave("./result/b/all_limma.pdf",width = 8,height=5)
+
+
+type=as.character(anno_col$type)
+type<-ifelse(type %in% c("H--AD","P--AD"),"brain_AD",type)
+type<-ifelse(type %in% c("H--WT","P--WT"),"brain_WT",type)
+
+design <- model.matrix(~0+type)
+colnames(design) = levels(factor(type))
+rownames(design) = rownames(anno_col)
+colnames(design) <- gsub("--", "_", colnames(design))
+fit=lmFit(t(ssGSEA_Score1[,1:4]),design)
+fit2=contrasts.fit(fit,makeContrasts('`brain_AD`-`brain_WT`',levels = design))
+fit2=eBayes(fit2)
+fit4=contrasts.fit(fit,makeContrasts('`L_AD`-`L_WT`',levels = design))
+fit4=eBayes(fit4)
+pathway_res<-rbind.data.frame(data.frame(term="brain", cell=rownames(topTable(fit2)),topTable(fit2)),
+                              data.frame(term="L", cell=rownames(topTable(fit4)),topTable(fit4)))
+pathway_res$label<-NA
+pathway_res$label[pathway_res$P.Value<0.1 & pathway_res$P.Value>=0.05]<-"."
+pathway_res$label[pathway_res$P.Value<0.05 &pathway_res$P.Value>=0.01]<-"*"
+pathway_res$label[pathway_res$P.Value<0.01 &pathway_res$P.Value>=0.001]<-"**"
+pathway_res$label[pathway_res$P.Value<0.001]<-"***"
+
+ggplot(pathway_res,
+       aes(x=term, y=t,fill=term))+
+  facet_grid(~cell)+
+  geom_bar(stat="identity")+
+  scale_fill_manual(values = c( "#D2AF81FF","#709AE1FF" ))+
+  geom_hline(yintercept=0)+
+  labs(x=NULL,y="t value of GSVA score")+     
+  geom_text(aes(label=label,vjust=-0.3),size=6)+  
+  theme_bw()+
+  theme(
+    panel.grid = element_blank(),
+    axis.line.x = element_blank(),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank())
+ggsave("./result/b/all_limma1.pdf",width = 8,height = 5)
+
+
+
+library(org.Mm.eg.db)
+library(clusterProfiler)
+library(enrichplot)
+
+Idents(Bcell.int)<-"cell"
+bn_m = FindMarkers(Bcell.int,ident.1 = 'Bn',only.pos=T,min.pct = 0.25,logfc.threshold = 0.25)
+bn_marker = filter(bn_m,p_val_adj <= 0.05)
+bn_marker$SYMBOL = rownames(bn_marker)
+names(bn_marker)[2] = c("logFC" )
+bn_marker <- bn_marker %>% arrange(desc(logFC))
+geneList = bn_marker$logFC 
+names(geneList) <- bn_marker$SYMBOL 
+
+bn_gsea <- GSEA(geneList,TERM2GENE = gmt)
+bn_gsea@result$ID
+library(GseaVis)
+gseaNb(object = bn_gsea,addPval = T,
+       geneSetID = bn_gsea@result$ID)
+
+library(ggrepel)
+markers <- bn_m %>%
+  mutate(Difference = pct.1 - pct.2) %>% 
+  tibble::rownames_to_column("gene")
+markers$sign <- ifelse(markers$p_val_adj<=0.05 & abs(markers$avg_log2FC) >=1,
+                       markers$gene,NA)
+markers$change<- ifelse(markers$p_val_adj<=0.05 & markers$avg_log2FC >=1,
+                        "up",ifelse(markers$p_val_adj<=0.05 & markers$avg_log2FC <= -1,
+                                    "down","ns"))
+
+ggplot(markers, aes(x=Difference, y=avg_log2FC, color = change)) + 
+  geom_point(size=2) + 
+  scale_color_manual(values=c("grey","tomato"))+
+  geom_label_repel(data=subset(markers, 
+                               avg_log2FC >= 1 & Difference>0.2 &p_val_adj <= 0.05), 
+                   aes(label=sign),  #添加label
+                   color="black", #设置label中标签的颜色
+                   segment.colour = "black",#设置label框的颜色
+                   label.padding = 0.2, 
+                   segment.size = 0.3,  #框的大小
+                   size=4,
+                   max.overlaps = 20) +  # 增加 max.overlaps 参数
+  geom_label_repel(data=subset(markers, 
+                               avg_log2FC <= -1 & Difference< -0.2&p_val_adj <= 0.05), 
+                   aes(label=sign), 
+                   label.padding = 0.2, 
+                   color="black",
+                   segment.colour = "black",
+                   segment.size = 0.3, size=4,
+                   max.overlaps = 20)+
+  geom_vline(xintercept = 0,linetype = 2) +
+  geom_hline(yintercept = 0,linetype = 2) +
+  labs(x="△ Percentage difference",y="Log-Fold change") + 
+  theme_bw()+
+  theme(panel.grid = element_blank())
+ggsave("./result/b/volcanoplot_bn.pdf",width = 7,height = 7)
+
+bn_gsea2 <- GSEA(geneList,TERM2GENE = m2) 
+bn_gsea2<-bn_gsea2@result
+ggplot(bn_gsea2)+  
+  geom_col(aes(reorder(Description, NES), NES, fill = -1*log10(p.adjust)))+  
+  scale_fill_gradient2(high = "#b92317",low = "#3474b7", 
+                       midpoint = 0)+    
+  geom_segment(aes(y = 0, yend = 0,x = 0, 
+                   xend = nrow(bn_gsea2)+1))+ 
+  theme_classic()+  
+  ylim(-(max(abs(bn_gsea2$NES))+1),max(abs(bn_gsea2$NES))+1)+  
+  coord_flip()+  # 调整主题：  
+  theme( #legend.position = "none",    # 标题居中：    
+    plot.title = element_text(hjust = 0.5),    
+    axis.line.y = element_blank(),    
+    axis.title.y = element_blank(),    
+    axis.ticks.y = element_blank(),    
+    axis.text.y = element_blank())+    
+  geom_text(data=subset(bn_gsea2,NES >0),
+            aes(x = Description, y = -0.1, label =Description),
+            hjust = 1, size = 4)+  
+  geom_text(data=subset(bn_gsea2,NES <0),
+            aes(x = Description, y = 0.1, label = Description),
+            hjust = 0, size = 4)+   
+  scale_x_discrete(expand=expansion(add=c(0,1.5)))+  
+  geom_segment(aes(y = -0.1, yend = -((max(abs(NES))+1)/2),
+                   x = nrow(bn_gsea2)+1, xend = nrow(bn_gsea2)+1),         
+               arrow = arrow(length = unit(0.2, "cm"), 
+                             type="closed"),size = 0.5)+  
+  geom_segment(aes(y = 0.1, yend = (max(abs(NES))+1)/2,
+                   x = nrow(bn_gsea2)+1, xend = nrow(bn_gsea2)+1),     
+               arrow = arrow(length = unit(0.2, "cm"), 
+                             type="closed"),size = 0.5)+  
+  annotate("text", x = nrow(bn_gsea2)+1, y = -((max(abs(bn_gsea2$NES))+1)/2 + 2), 
+           label = "Down")+  
+  annotate("text", x = nrow(bn_gsea2)+1, y = (max(abs(bn_gsea2$NES))+1)/2 + 2, label = "UP")
+ggsave("./result/b/m2_cp_bn.pdf",width = 9,height = 6)
+
+
+bn_gsea1 <- GSEA(geneList,TERM2GENE = m5) 
+bn_gsea1 <-bn_gsea1@result[grep("GOBP",bn_gsea1@result$ID),]
+bn_gsea1$Description<-gsub("GOBP_","",bn_gsea1$Description)
+ggplot(bn_gsea1)+  
+  geom_col(aes(reorder(Description, NES), NES, fill = -1*log10(p.adjust)))+  
+  scale_fill_gradient2(high = "#b92317",low = "#3474b7", 
+                       midpoint = 0)+    
+  geom_segment(aes(y = 0, yend = 0,x = 0, 
+                   xend = nrow(bn_gsea1)+1))+ 
+  theme_classic()+  
+  ylim(-(max(abs(bn_gsea1$NES))+1),max(abs(bn_gsea1$NES))+1)+  
+  coord_flip()+  # 调整主题：  
+  theme( #legend.position = "none",    # 标题居中：    
+    plot.title = element_text(hjust = 0.5),    
+    axis.line.y = element_blank(),    
+    axis.title.y = element_blank(),    
+    axis.ticks.y = element_blank(),    
+    axis.text.y = element_blank())+    
+  geom_text(data=subset(bn_gsea1,NES >0),
+            aes(x = Description, y = -0.1, label =Description),
+            hjust = 1, size = 4)+  
+  geom_text(data=subset(bn_gsea1,NES <0),
+            aes(x = Description, y = 0.1, label = Description),
+            hjust = 0, size = 4)+   
+  scale_x_discrete(expand=expansion(add=c(0,1.5)))+  
+  geom_segment(aes(y = -0.1, yend = -((max(abs(bn_gsea1$NES))+1)/2),
+                   x = nrow(bn_gsea1)+1, xend = nrow(bn_gsea1)+1),         
+               arrow = arrow(length = unit(0.2, "cm"), 
+                             type="closed"),                
+               size = 0.5)+  
+  geom_segment(aes(y = 0.1, yend = (max(abs(bn_gsea1$NES))+1)/2,
+                   x = nrow(bn_gsea1)+1, xend = nrow(bn_gsea1)+1),     
+               arrow = arrow(length = unit(0.2, "cm"), 
+                             type="closed"),                
+               size = 0.5)+  
+  annotate("text", x = nrow(bn_gsea1)+1, y = -((max(abs(bn_gsea1$NES))+1)/2 + 2), 
+           label = "Down")+  
+  annotate("text", x = nrow(bn_gsea1)+1, y = (max(abs(bn_gsea1$NES))+1)/2 + 2, label = "UP")
+ggsave("./result/b/bn_go_bp.pdf",width = 9,height = 6)
+
+
+
+b1_m = FindMarkers(Bcell.int,ident.1 = 'B1a',only.pos=T,min.pct = 0.25,logfc.threshold = 0.25)
+b1_marker = filter(b1_m,p_val_adj <= 0.05)
+b1_marker$SYMBOL = rownames(b1_marker)
+names(b1_marker)[2] = c("logFC" )
+b1_marker <- b1_marker %>% arrange(desc(logFC))
+geneList = b1_marker$logFC 
+names(geneList) <- b1_marker$SYMBOL 
+b1_gsea <- GSEA(geneList,TERM2GENE = gmt)
+library(GseaVis)
+gseaNb(object = b1_gsea,addPval = T,
+       geneSetID = b1_gsea@result$ID)
+
+library(ggrepel)
+library(tibble)
+markers <- b1_m %>%
+  mutate(Difference = pct.1 - pct.2) %>% 
+  rownames_to_column("gene")
+markers$sign <- ifelse(markers$p_val_adj<=0.05 & abs(markers$avg_log2FC) >=1,
+                       markers$gene,NA)
+markers$change<- ifelse(markers$p_val_adj<=0.05 & markers$avg_log2FC >=1,
+                        "up",ifelse(markers$p_val_adj<=0.05 & markers$avg_log2FC <= -1,
+                                    "down","ns"))
+
+ggplot(markers, aes(x=Difference, y=avg_log2FC, color = change)) + 
+  geom_point(size=2) + 
+  scale_color_manual(values=c("grey","tomato"))+
+  geom_label_repel(data=subset(markers, 
+                               avg_log2FC >= 1 & Difference>0.2 &p_val_adj <= 0.05), 
+                   aes(label=sign),  #添加label
+                   color="black", #设置label中标签的颜色
+                   segment.colour = "black",#设置label框的颜色
+                   label.padding = 0.2, 
+                   segment.size = 0.3,  #框的大小
+                   size=4,
+                   max.overlaps = 20) +  # 增加 max.overlaps 参数
+  geom_label_repel(data=subset(markers, 
+                               avg_log2FC <= -1 & Difference< -0.2&p_val_adj <= 0.05), 
+                   aes(label=sign), 
+                   label.padding = 0.2, 
+                   color="black",
+                   segment.colour = "black",
+                   segment.size = 0.3, size=4,
+                   max.overlaps = 20)+
+  geom_vline(xintercept = 0,linetype = 2) +
+  geom_hline(yintercept = 0,linetype = 2) +
+  labs(x="△ Percentage difference",y="Log-Fold change") + 
+  theme_bw()+
+  theme(panel.grid = element_blank())
+ggsave("./result/b/volcanoplot_b1.pdf",width = 7,height = 7)
+
+b1_gsea1 <- GSEA(geneList,TERM2GENE = m5) 
+b1_gsea1 <-b1_gsea1@result[grep("GOBP",b1_gsea1@result$ID),]
+b1_gsea1$Description<-gsub("GOBP_","",b1_gsea1$Description)
+ggplot(b1_gsea1)+  
+  geom_col(aes(reorder(Description, NES), NES, fill = -1*log10(p.adjust)))+  
+  scale_fill_gradient2(high = "#b92317",low = "#3474b7", 
+                       midpoint = 0)+    
+  geom_segment(aes(y = 0, yend = 0,x = 0, 
+                   xend = nrow(b1_gsea1)+1))+ 
+  theme_classic()+  
+  ylim(-(max(abs(b1_gsea1$NES))+1),max(abs(b1_gsea1$NES))+1)+  
+  coord_flip()+  # 调整主题：  
+  theme( #legend.position = "none",    # 标题居中：    
+    plot.title = element_text(hjust = 0.5),    
+    axis.line.y = element_blank(),    
+    axis.title.y = element_blank(),    
+    axis.ticks.y = element_blank(),    
+    axis.text.y = element_blank())+    
+  geom_text(data=subset(b1_gsea1,NES >0),
+            aes(x = Description, y = -0.1, label =Description),
+            hjust = 1, size = 4)+  
+  geom_text(data=subset(b1_gsea1,NES <0),
+            aes(x = Description, y = 0.1, label = Description),
+            hjust = 0, size = 4)+   
+  scale_x_discrete(expand=expansion(add=c(0,1.5)))+  
+  geom_segment(aes(y = -0.1, yend = -((max(abs(b1_gsea1$NES))+1)/2),
+                   x = nrow(b1_gsea1)+1, xend = nrow(b1_gsea1)+1),         
+               arrow = arrow(length = unit(0.2, "cm"), 
+                             type="closed"),                
+               size = 0.5)+  
+  geom_segment(aes(y = 0.1, yend = (max(abs(b1_gsea1$NES))+1)/2,
+                   x = nrow(b1_gsea1)+1, xend = nrow(b1_gsea1)+1),     
+               arrow = arrow(length = unit(0.2, "cm"), 
+                             type="closed"),                
+               size = 0.5)+  
+  annotate("text", x = nrow(b1_gsea1)+1, y = -((max(abs(b1_gsea1$NES))+1)/2 + 2), 
+           label = "Down")+  
+  annotate("text", x = nrow(b1_gsea1)+1, y = (max(abs(b1_gsea1$NES))+1)/2 + 2, label = "UP")
+ggsave("./result/b/b1_go_bp.pdf",width = 9,height = 6)
+
+b1_gsea2 <- GSEA(geneList,TERM2GENE = m2) 
+b1_gsea2<-b1_gsea2@result
+ggplot(b1_gsea2)+  
+  geom_col(aes(reorder(Description, NES), NES, fill = -1*log10(p.adjust)))+  
+  scale_fill_gradient2(high = "#b92317",low = "#3474b7", 
+                       midpoint = 0)+    
+  geom_segment(aes(y = 0, yend = 0,x = 0, 
+                   xend = nrow(b1_gsea2)+1))+ 
+  theme_classic()+  
+  ylim(-(max(abs(b1_gsea2$NES))+1),max(abs(b1_gsea2$NES))+1)+  
+  coord_flip()+  # 调整主题：  
+  theme( #legend.position = "none",    # 标题居中：    
+    plot.title = element_text(hjust = 0.5),    
+    axis.line.y = element_blank(),    
+    axis.title.y = element_blank(),    
+    axis.ticks.y = element_blank(),    
+    axis.text.y = element_blank())+    
+  geom_text(data=subset(b1_gsea2,NES >0),
+            aes(x = Description, y = -0.1, label =Description),
+            hjust = 1, size = 4)+  
+  geom_text(data=subset(b1_gsea2,NES <0),
+            aes(x = Description, y = 0.1, label = Description),
+            hjust = 0, size = 4)+   
+  scale_x_discrete(expand=expansion(add=c(0,1.5)))+  
+  geom_segment(aes(y = -0.1, yend = -((max(abs(NES))+1)/2),
+                   x = nrow(b1_gsea2)+1, xend = nrow(b1_gsea2)+1),         
+               arrow = arrow(length = unit(0.2, "cm"), 
+                             type="closed"),size = 0.5)+  
+  geom_segment(aes(y = 0.1, yend = (max(abs(NES))+1)/2,
+                   x = nrow(b1_gsea2)+1, xend = nrow(b1_gsea2)+1),     
+               arrow = arrow(length = unit(0.2, "cm"), 
+                             type="closed"),size = 0.5)+  
+  annotate("text", x = nrow(b1_gsea2)+1, y = -((max(abs(b1_gsea2$NES))+1)/2 + 2), 
+           label = "Down")+  
+  annotate("text", x = nrow(b1_gsea2)+1, y = (max(abs(b1_gsea2$NES))+1)/2 + 2, label = "UP")
+ggsave("./result/b/b1_m2_cp.pdf",width = 9,height = 6)
+
+b1_gsea2<-rbind.data.frame(b1_gsea2,b1_gsea1)
+ggplot(b1_gsea2)+  
+  geom_col(aes(reorder(Description, NES), NES, fill = -1*log10(p.adjust)))+  
+  scale_fill_gradient2(high = "#b92317",low = "#3474b7", 
+                       midpoint = 0)+    
+  geom_segment(aes(y = 0, yend = 0,x = 0, 
+                   xend = nrow(b1_gsea2)+1))+ 
+  theme_classic()+  
+  ylim(-(max(abs(b1_gsea2$NES))+1),max(abs(b1_gsea2$NES))+1)+  
+  coord_flip()+  # 调整主题：  
+  theme( #legend.position = "none",    # 标题居中：    
+    plot.title = element_text(hjust = 0.5),    
+    axis.line.y = element_blank(),    
+    axis.title.y = element_blank(),    
+    axis.ticks.y = element_blank(),    
+    axis.text.y = element_blank())+    
+  geom_text(data=subset(b1_gsea2,NES >0),
+            aes(x = Description, y = -0.1, label =Description),
+            hjust = 1, size = 4)+  
+  geom_text(data=subset(b1_gsea2,NES <0),
+            aes(x = Description, y = 0.1, label = Description),
+            hjust = 0, size = 4)+   
+  scale_x_discrete(expand=expansion(add=c(0,1.5)))+  
+  geom_segment(aes(y = -0.1, yend = -((max(abs(NES))+1)/2),
+                   x = nrow(b1_gsea2)+1, xend = nrow(b1_gsea2)+1),         
+               arrow = arrow(length = unit(0.2, "cm"), 
+                             type="closed"),size = 0.5)+  
+  geom_segment(aes(y = 0.1, yend = (max(abs(NES))+1)/2,
+                   x = nrow(b1_gsea2)+1, xend = nrow(b1_gsea2)+1),     
+               arrow = arrow(length = unit(0.2, "cm"), 
+                             type="closed"),size = 0.5)+  
+  annotate("text", x = nrow(b1_gsea2)+1, y = -((max(abs(b1_gsea2$NES))+1)/2 + 2), 
+           label = "Down")+  
+  annotate("text", x = nrow(b1_gsea2)+1, y = (max(abs(b1_gsea2$NES))+1)/2 + 2, label = "UP")
+ggsave("./result/b/b1_m2_m5 men_b.pdf",width = 9,height = 6)
+
+mlb_m = FindMarkers(Bcell.int,ident.1 = 'MLB',only.pos=T,min.pct = 0.25,logfc.threshold = 0.25)
+mlb_marker = filter(mlb_m,p_val_adj <= 0.05)
+mlb_marker$SYMBOL = rownames(mlb_marker)
+names(mlb_marker)[2] = c("logFC" )
+mlb_marker <- mlb_marker %>% arrange(desc(logFC))
+geneList = mlb_marker$logFC 
+names(geneList) <- mlb_marker$SYMBOL 
+mlb_gsea <- GSEA(geneList,TERM2GENE = gmt)#0
+
+library(ggrepel)
+markers <- mlb_m %>%
+  mutate(Difference = pct.1 - pct.2) %>% 
+  rownames_to_column("gene")
+markers$sign <- ifelse(markers$p_val_adj<=0.05 & abs(markers$avg_log2FC) >=1,
+                       markers$gene,NA)
+markers$change<- ifelse(markers$p_val_adj<=0.05 & markers$avg_log2FC >=1,
+                        "up",ifelse(markers$p_val_adj<=0.05 & markers$avg_log2FC <= -1,
+                                    "down","ns"))
+
+ggplot(markers, aes(x=Difference, y=avg_log2FC, color = change)) + 
+  geom_point(size=2) + 
+  scale_color_manual(values=c("grey","tomato"))+
+  geom_label_repel(data=subset(markers, 
+                               avg_log2FC >= 1 & Difference>0.2 &p_val_adj <= 0.05), 
+                   aes(label=sign),  #添加label
+                   color="black", #设置label中标签的颜色
+                   segment.colour = "black",#设置label框的颜色
+                   label.padding = 0.2, 
+                   segment.size = 0.3,  #框的大小
+                   size=4,
+                   max.overlaps = 20) +  # 增加 max.overlaps 参数
+  geom_label_repel(data=subset(markers, 
+                               avg_log2FC <= -1 & Difference< -0.2&p_val_adj <= 0.05), 
+                   aes(label=sign), 
+                   label.padding = 0.2, 
+                   color="black",
+                   segment.colour = "black",
+                   segment.size = 0.3, size=4,
+                   max.overlaps = 20)+
+  geom_vline(xintercept = 0,linetype = 2) +
+  geom_hline(yintercept = 0,linetype = 2) +
+  labs(x="△ Percentage difference",y="Log-Fold change") + 
+  theme_bw()+
+  theme(panel.grid = element_blank())
+ggsave("./result/b/volcanoplot_mlb.pdf",width = 7,height = 7)
+
+mlb_gsea1 <- GSEA(geneList,TERM2GENE = m5)#0 
+mlb_gsea2<-GSEA(geneList,TERM2GENE =m2) #0
+
+
+pre_m = FindMarkers(Bcell.int,ident.1 = 'Pre-B',only.pos=T,min.pct = 0.25,logfc.threshold = 0.25)
+pre_marker = filter(pre_m,p_val_adj <= 0.05)
+pre_marker$SYMBOL = rownames(pre_marker)
+names(pre_marker)[2] = c("logFC" )
+pre_marker <- pre_marker %>% arrange(desc(logFC))
+geneList = pre_marker$logFC 
+names(geneList) <- pre_marker$SYMBOL 
+pre_gsea <- GSEA(geneList,TERM2GENE = gmt)
+gseaNb(object = pre_gsea,addPval = T,
+       geneSetID = pre_gsea@result$ID)
+
+
+
+library(ggrepel)
+markers <- pre_m %>%
+  mutate(Difference = pct.1 - pct.2) %>% 
+  rownames_to_column("gene")
+markers$sign <- ifelse(markers$p_val_adj<=0.05 & abs(markers$avg_log2FC) >=1,
+                       markers$gene,NA)
+markers$change<- ifelse(markers$p_val_adj<=0.05 & markers$avg_log2FC >=1,
+                        "up",ifelse(markers$p_val_adj<=0.05 & markers$avg_log2FC <= -1,
+                                    "down","ns"))
+
+ggplot(markers, aes(x=Difference, y=avg_log2FC, color = change)) + 
+  geom_point(size=2) + 
+  scale_color_manual(values=c("grey","tomato"))+
+  geom_label_repel(data=subset(markers, 
+                               avg_log2FC >= 1 & Difference>0.2 &p_val_adj <= 0.05), 
+                   aes(label=sign),  #添加label
+                   color="black", #设置label中标签的颜色
+                   segment.colour = "black",#设置label框的颜色
+                   label.padding = 0.2, 
+                   segment.size = 0.3,  #框的大小
+                   size=4,
+                   max.overlaps = 20) +  # 增加 max.overlaps 参数
+  geom_label_repel(data=subset(markers, 
+                               avg_log2FC <= -1 & Difference< -0.2&p_val_adj <= 0.05), 
+                   aes(label=sign), 
+                   label.padding = 0.2, 
+                   color="black",
+                   segment.colour = "black",
+                   segment.size = 0.3, size=4,
+                   max.overlaps = 20)+
+  geom_vline(xintercept = 0,linetype = 2) +
+  geom_hline(yintercept = 0,linetype = 2) +
+  labs(x="△ Percentage difference",y="Log-Fold change") + 
+  theme_bw()+
+  theme(panel.grid = element_blank())
+ggsave("./result/b/volcanoplot_pre.pdf",width = 7,height = 7)
+
+pre_gsea1 <- GSEA(geneList,TERM2GENE = m5) 
+pre_gsea1 <-pre_gsea1@result[grep("GOBP",pre_gsea1@result$ID),]
+pre_gsea1$Description<-gsub("GOBP_","",pre_gsea1$Description)
+ggplot(pre_gsea1)+  
+  geom_col(aes(reorder(Description, NES), NES, fill = -1*log10(p.adjust)))+  
+  scale_fill_gradient2(high = "#b92317",low = "#3474b7", 
+                       midpoint = 0)+    
+  geom_segment(aes(y = 0, yend = 0,x = 0, 
+                   xend = nrow(pre_gsea1)+1))+ 
+  theme_classic()+  
+  ylim(-(max(abs(pre_gsea1$NES))+1),max(abs(pre_gsea1$NES))+1)+  
+  coord_flip()+  # 调整主题：  
+  theme( #legend.position = "none",    # 标题居中：    
+    plot.title = element_text(hjust = 0.5),    
+    axis.line.y = element_blank(),    
+    axis.title.y = element_blank(),    
+    axis.ticks.y = element_blank(),    
+    axis.text.y = element_blank())+    
+  geom_text(data=subset(pre_gsea1,NES >0),
+            aes(x = Description, y = -0.1, label =Description),
+            hjust = 1, size = 4)+  
+  geom_text(data=subset(pre_gsea1,NES <0),
+            aes(x = Description, y = 0.1, label = Description),
+            hjust = 0, size = 4)+   
+  scale_x_discrete(expand=expansion(add=c(0,1.5)))+  
+  geom_segment(aes(y = -0.1, yend = -((max(abs(pre_gsea1$NES))+1)/2),
+                   x = nrow(pre_gsea1)+1, xend = nrow(pre_gsea1)+1),         
+               arrow = arrow(length = unit(0.2, "cm"), 
+                             type="closed"),                
+               size = 0.5)+  
+  geom_segment(aes(y = 0.1, yend = (max(abs(pre_gsea1$NES))+1)/2,
+                   x = nrow(pre_gsea1)+1, xend = nrow(pre_gsea1)+1),     
+               arrow = arrow(length = unit(0.2, "cm"), 
+                             type="closed"),                
+               size = 0.5)+  
+  annotate("text", x = nrow(pre_gsea1)+1, y = -((max(abs(pre_gsea1$NES))+1)/2 + 2), 
+           label = "Down")+  
+  annotate("text", x = nrow(pre_gsea1)+1, y = (max(abs(pre_gsea1$NES))+1)/2 + 2, label = "UP")
+ggsave("./result/b/pre_go_bp.pdf",width = 9,height = 6)
+
+pre_gsea2 <- GSEA(geneList,TERM2GENE = m2) 
+pre_gsea2<-pre_gsea2@result
+ggplot(pre_gsea2)+  
+  geom_col(aes(reorder(Description, NES), NES, fill = -1*log10(p.adjust)))+  
+  scale_fill_gradient2(high = "#b92317",low = "#3474b7", 
+                       midpoint = 0)+    
+  geom_segment(aes(y = 0, yend = 0,x = 0, 
+                   xend = nrow(pre_gsea2)+1))+ 
+  theme_classic()+  
+  ylim(-(max(abs(pre_gsea2$NES))+1),max(abs(pre_gsea2$NES))+1)+  
+  coord_flip()+  # 调整主题：  
+  theme( #legend.position = "none",    # 标题居中：    
+    plot.title = element_text(hjust = 0.5),    
+    axis.line.y = element_blank(),    
+    axis.title.y = element_blank(),    
+    axis.ticks.y = element_blank(),    
+    axis.text.y = element_blank())+    
+  geom_text(data=subset(pre_gsea2,NES >0),
+            aes(x = Description, y = -0.1, label =Description),
+            hjust = 1, size = 4)+  
+  geom_text(data=subset(pre_gsea2,NES <0),
+            aes(x = Description, y = 0.1, label = Description),
+            hjust = 0, size = 4)+   
+  scale_x_discrete(expand=expansion(add=c(0,1.5)))+  
+  geom_segment(aes(y = -0.1, yend = -((max(abs(NES))+1)/2),
+                   x = nrow(pre_gsea2)+1, xend = nrow(pre_gsea2)+1),         
+               arrow = arrow(length = unit(0.2, "cm"), 
+                             type="closed"),size = 0.5)+  
+  geom_segment(aes(y = 0.1, yend = (max(abs(NES))+1)/2,
+                   x = nrow(pre_gsea2)+1, xend = nrow(pre_gsea2)+1),     
+               arrow = arrow(length = unit(0.2, "cm"), 
+                             type="closed"),size = 0.5)+  
+  annotate("text", x = nrow(pre_gsea2)+1, y = -((max(abs(pre_gsea2$NES))+1)/2 + 2), 
+           label = "Down")+  
+  annotate("text", x = nrow(pre_gsea2)+1, y = (max(abs(pre_gsea2$NES))+1)/2 + 2, label = "UP")
+ggsave("./result/b/pre_m2_cp.pdf",width = 9,height = 6)
+
+
+
+
+library(dplyr)
+library(plyr)
+library(CellChat)
+library(Seurat)
+#load("./result/final/T_dc_nk_b_mast.RData")
+load("./result/final/T_final.RData")
+load("./result/final/dc_final.RData")
+load("./result/final/nk_final.RData")
+load("./result/final/b_final.RData")
+source("./code/function.R")
+index<-match(c(colnames(Tcell.int1),colnames(nkcell.int),
+               colnames(dc.int),colnames(Bcell.int)),
+             colnames(brain_select))
+brain_select$cell.fined<-NA
+brain_select$cell.fined[index]<-c(as.character(Tcell.int1$cell),nkcell.int$cell,
+                                  dc.int$cell,Bcell.int$cell)
+brain_select_subset<-brain_select[,index]
+
+brain_select1<-subset(brain_select,type %in% c("AD_brain","AD_Men"))
+chat<- createCellChat(brain_select1@assays$RNA$data, 
+                      meta = brain_select1@meta.data, 
+                      group.by = "cell")
+
+chat_ad <- process_cellchat(chat)
+
+
+brain_select2<-subset(brain_select,type %in% c("N_brain","N_Men"))
+chat<- createCellChat(brain_select2@assays$RNA$data, 
+                      meta = brain_select2@meta.data, 
+                      group.by = "cell")
+
+chat_wt <- process_cellchat(chat)
+cellchat.list <- list(wt=chat_wt,ad=chat_ad)
+cellchat<- mergeCellChat(cellchat.list, add.names = names(cellchat.list))
+
+#####总体数目比较 #####
+p1 <- compareInteractions(cellchat, show.legend = F, group = c(1,2),color.use=c("#2E94B9","#D25565"))
+p2 <- compareInteractions(cellchat, show.legend = F, group = c(1,2), measure = "weight",color.use=c("#2E94B9","#D25565"))
+p1+p2
+
+####脑区互作####
+###cdc2_brain在wt不存在，而且和其他细胞不交流，所以删除
+brain_select_subset1<-subset(brain_select_subset,type %in% c("AD_brain","AD_Men"))
+brain_select_subset1<-subset(brain_select_subset1,cell.fined %in% c("CD4Tn","Th","cDC1","cDC2",
+                                                                    "transnk1","B1a","Bn",
+                                                                    "Pre-B","MLB"))
+brain_select_subset1$cell.fined<-paste0(brain_select_subset1$cell.fined,"_",brain_select_subset1$type)
+brain_select_subset1$cell.fined<-gsub("_AD","",brain_select_subset1$cell.fined)
+brain_select_subset1<-subset(brain_select_subset1,cell.fined %in% setdiff(unique(brain_select_subset1$cell.fined),"cDC2_brain"))
+chat<- createCellChat(brain_select_subset1@assays$RNA$data, 
+                      meta = brain_select_subset1@meta.data, 
+                      group.by = "cell.fined")
+
+chat_ad <- process_cellchat(chat)
+
+
+brain_select_subset2<-subset(brain_select_subset,type %in% c("N_brain","N_Men"))
+brain_select_subset2<-subset(brain_select_subset2,cell.fined %in% c("CD4Tn","Th","cDC1","cDC2",
+                                                                    "transnk1","B1a","Bn",
+                                                                    "Pre-B","MLB"))
+brain_select_subset2$cell.fined<-paste0(brain_select_subset2$cell.fined,"_",brain_select_subset2$type)
+brain_select_subset2$cell.fined<-gsub("_N","",brain_select_subset2$cell.fined)
+brain_select_subset2<-subset(brain_select_subset2,cell.fined %in% setdiff(unique(brain_select_subset2$cell.fined),"cDC2_brain"))
+
+chat<- createCellChat(brain_select_subset2@assays$RNA$data, 
+                      meta = brain_select_subset2@meta.data, 
+                      group.by = "cell.fined")
+
+chat_wt <- process_cellchat(chat)
+cellchat.list <- list(wt=chat_wt,ad=chat_ad)
+cellchat<- mergeCellChat(cellchat.list, add.names = names(cellchat.list))
+
+
+#####总体数目比较 #####
+p1 <- compareInteractions(cellchat, show.legend = F, group = c(1,2),color.use=c("#2E94B9","#D25565"))
+p2 <- compareInteractions(cellchat, show.legend = F, group = c(1,2), measure = "weight",color.use=c("#2E94B9","#D25565"))
+p1+p2
+
+par(mfrow = c(1,2), xpd = TRUE)
+netVisual_diffInteraction(cellchat, weight.scale = T)
+netVisual_diffInteraction(cellchat, weight.scale = T, measure = "weight")
+
+
+##### 总细胞通讯差异热图####
+p3<- netVisual_heatmap(cellchat)
+p4<- netVisual_heatmap(cellchat, measure = "weight")
+p3+ p4
+
+####筛选 “显著增强” 和 “显著抑制”#####
+diff_count_matrix <- cellchat@net$ad$count-cellchat@net$wt$count
+diff_weight_matrix <- cellchat@net$ad$weight-cellchat@net$wt$weight
+
+library(reshape2)
+count_df  <- melt(diff_count_matrix,  varnames = c("source","target"), value.name = "Δcount")
+weight_df <- melt(diff_weight_matrix, varnames = c("source","target"), value.name = "Δweight")
+diff_df <- inner_join(count_df, weight_df, by = c("source","target"))
+
+enhanced <- diff_df %>% 
+  filter(Δcount  >=  2,
+         Δweight >=  0.1) %>%
+  arrange(desc(Δcount), desc(Δweight))
+
+suppressed <- diff_df %>% 
+  filter(Δcount  <= -2,
+         Δweight <= -0.1) %>%
+  arrange(Δcount, Δweight)
+
+selecet_cellchat<-suppressed[intersect(order(suppressed$Δcount)[1:5],
+                                       order(suppressed$Δweight)[1:5]),]
+
+#####基于信息流或互作数对信号通路进行排序#####
+p5 <- rankNet(cellchat, mode = "comparison", stacked = T, do.stat = TRUE) #堆叠
+p6 <- rankNet(cellchat, mode = "comparison", stacked = F, do.stat = TRUE) #不堆叠
+p5 + p6
+
+
+
+#####信号通路#####
+pathway.union <- union(cellchat.list[[1]]@netP$pathways,
+                       cellchat.list[[2]]@netP$pathways)
+ht1 = netAnalysis_signalingRole_heatmap(cellchat.list[[1]], 
+                                        pattern = "outgoing", #传出
+                                        signaling = pathway.union[1:20], 
+                                        title = names(cellchat.list)[1], 
+                                        width = 5, 
+                                        height = 6)
+ht2 = netAnalysis_signalingRole_heatmap(cellchat.list[[2]], 
+                                        pattern = "outgoing", #传出
+                                        signaling = pathway.union[1:20], 
+                                        title = names(cellchat.list)[2], 
+                                        width = 5, 
+                                        height = 6)
+ht1 + ht2
+
+
+ht1 = netAnalysis_signalingRole_heatmap(cellchat.list[[1]], 
+                                        pattern = "incoming", #传出
+                                        signaling = pathway.union[1:20], 
+                                        title = names(cellchat.list)[1], 
+                                        width = 5, color.heatmap = "GnBu",
+                                        height = 6)
+ht2 = netAnalysis_signalingRole_heatmap(cellchat.list[[2]], 
+                                        pattern = "incoming", #传出
+                                        signaling = pathway.union[1:20], 
+                                        title = names(cellchat.list)[2], 
+                                        width = 5,color.heatmap = "GnBu", 
+                                        height = 6)
+ht1 + ht2
+
+ht1 = netAnalysis_signalingRole_heatmap(cellchat.list [[1]], 
+                                        pattern = "all", #传出
+                                        signaling = pathway.union[1:20], 
+                                        title = names(cellchat.list)[1], 
+                                        width = 5, color.heatmap = "OrRd",
+                                        height = 6)
+ht2 = netAnalysis_signalingRole_heatmap(cellchat.list [[2]], 
+                                        pattern = "all", #传出
+                                        signaling = pathway.union[1:20], 
+                                        title = names(cellchat.list)[2], 
+                                        width = 5,color.heatmap = "OrRd", 
+                                        height = 6)
+ht1 + ht2
+
+library(ComplexHeatmap)
+wt_outgoing<-netAnalysis_signalingRole_heatmap_table(cellchat.list[[1]], 
+                                                     pattern = "outgoing", #传出
+                                                     signaling = pathway.union, 
+                                                     title = names(cellchat.list)[1], 
+                                                     width = 5, 
+                                                     height = 6)
+ad_outgoing<-netAnalysis_signalingRole_heatmap_table(cellchat.list[[2]], 
+                                                     pattern = "outgoing", #传出
+                                                     signaling = pathway.union, 
+                                                     title = names(cellchat.list)[2], 
+                                                     width = 5, 
+                                                     height = 6)
+
+ad_wt_outgoing.ori<-ad_outgoing$mat.ori-wt_outgoing$mat.ori
+ad_wt_outgoing<-ad_outgoing$mat-wt_outgoing$mat
+
+sig_pathway <- c(
+  "LT", "GRN","LIGHT","LAIR1","CD137", "CD200","BAFF","IL1","PROS","VISFATIN",
+  "CEACAM","CD45","CD22", "IL16","L1CAM","SEMA4","BST2","ITGAL-ITGB2", "MHC-II", "SELPLG","MHC-I",
+  "APP","MIF", "CLEC","XCR","FN1", "CD80","RELN","CD226","SEMA7",
+  "TIGIT","PVR","IL2", "IL4"
+  
+)
+ad_wt_outgoing<-ad_wt_outgoing[sig_pathway,]
+ad_wt_outgoing1<-ad_wt_outgoing[apply(ad_wt_outgoing,1,function(x)sum(is.na(x)))!=17,
+                                c("Pre-B_brain","CD4Tn_Men","Th_Men","cDC2_Men")]
+ad_wt_outgoing.ori1<-ad_wt_outgoing.ori[rownames(ad_wt_outgoing1),
+                                        colnames(ad_wt_outgoing1)]
+ad_wt_outgoing_psum<-ad_outgoing$pSum[rownames(ad_wt_outgoing1)]-wt_outgoing$pSum[rownames(ad_wt_outgoing1)]
+
+
+ad_wt_outgoing1<-ad_wt_outgoing1[order(ad_wt_outgoing_psum),]
+ad_wt_outgoing.ori1<-ad_wt_outgoing.ori1[order(ad_wt_outgoing_psum),]
+ad_wt_outgoing_psum<-ad_wt_outgoing_psum[order(ad_wt_outgoing_psum)]
+
+color.use=c("#377EB8","#4DAF4A","#1B9E77", "#B2DF8A")
+names(color.use)=c("Pre-B_brain","CD4Tn_Men","Th_Men","cDC2_Men")
+
+df<- data.frame(group = colnames(ad_wt_outgoing1))
+rownames(df) <- colnames(ad_wt_outgoing1)
+col_annotation <- HeatmapAnnotation(df = df, which = "column",col = list(group = color.use),
+                                    show_legend = FALSE, show_annotation_name = FALSE,
+                                    simple_anno_size = grid::unit(0.2, "cm"))
+ha2 = HeatmapAnnotation(Strength = anno_barplot(colSums(ad_outgoing$mat.ori[,colnames(ad_wt_outgoing1)])-colSums(wt_outgoing$mat.ori[,colnames(ad_wt_outgoing1)]), border = FALSE,
+                                                gp = gpar(fill = color.use, col=color.use)), show_annotation_name = FALSE)
+ha1 = rowAnnotation(Strength = anno_barplot(abs(ad_wt_outgoing_psum), border = FALSE), show_annotation_name = FALSE)
+Heatmap(ad_wt_outgoing1,  na_col = "white", name = "Relative strength",
+        bottom_annotation = col_annotation, top_annotation = ha2, #right_annotation = ha1,
+        cluster_rows = F,cluster_columns = F,column_title = "Outgoing",
+        row_names_side = "left",row_names_rot = 0,row_names_gp = gpar(fontsize = 20),column_names_gp = gpar(fontsize = 10),
+        width = unit(10, "cm"), height = unit(8, "cm"),
+        column_title_gp = gpar(fontsize = 10),column_names_rot = 90,
+        heatmap_legend_param = list(title_gp = gpar(fontsize = 8, fontface = "plain"),title_position = "leftcenter-rot",
+                                    border = NA, 
+                                    at = c(round(min(ad_wt_outgoing1, na.rm = T), digits = 1), round(max(ad_wt_outgoing1, na.rm = T), digits = 1)),
+                                    legend_height = unit(20, "mm"),labels_gp = gpar(fontsize = 8),grid_width = unit(2, "mm")))
+
+
+
+
+wt_incoming<-netAnalysis_signalingRole_heatmap_table(cellchat.list[[1]], 
+                                                     pattern = "incoming", #传出
+                                                     signaling = pathway.union, 
+                                                     title = names(cellchat.list)[1], 
+                                                     width = 5, 
+                                                     height = 6)
+ad_incoming<-netAnalysis_signalingRole_heatmap_table(cellchat.list[[2]], 
+                                                     pattern = "incoming", #传出
+                                                     signaling = pathway.union, 
+                                                     title = names(cellchat.list)[2], 
+                                                     width = 5, 
+                                                     height = 6)
+ad_wt_incoming.ori<-ad_incoming$mat.ori-wt_incoming$mat.ori
+ad_wt_incoming<-ad_incoming$mat-wt_incoming$mat
+ad_wt_incoming<-ad_wt_incoming[sig_pathway,]
+ad_wt_incoming1<-ad_wt_incoming[apply(ad_wt_incoming,1,function(x)sum(is.na(x)))!=17,
+                                c("Pre-B_brain","CD4Tn_Men","Th_Men","cDC2_Men")]
+ad_wt_incoming.ori1<-ad_wt_incoming.ori[rownames(ad_wt_incoming1),
+                                        colnames(ad_wt_incoming1)]
+ad_wt_incoming_psum<-ad_incoming$pSum[rownames(ad_wt_incoming1)]-wt_incoming$pSum[rownames(ad_wt_incoming1)]
+
+
+ad_wt_incoming1<-ad_wt_incoming1[order(ad_wt_incoming_psum),]
+ad_wt_incoming.ori1<-ad_wt_incoming.ori1[order(ad_wt_incoming_psum),]
+ad_wt_incoming_psum<-ad_wt_incoming_psum[order(ad_wt_incoming_psum)]
+
+color.use=c("#377EB8","#4DAF4A","#1B9E77", "#B2DF8A")
+names(color.use)=c("Pre-B_brain","CD4Tn_Men","Th_Men","cDC2_Men")
+
+df<- data.frame(group = colnames(ad_wt_incoming1))
+rownames(df) <- colnames(ad_wt_incoming1)
+col_annotation <- HeatmapAnnotation(df = df, which = "column",col = list(group = color.use),
+                                    show_legend = FALSE, show_annotation_name = FALSE,
+                                    simple_anno_size = grid::unit(0.2, "cm"))
+ha2 = HeatmapAnnotation(Strength = anno_barplot(colSums(ad_incoming$mat.ori[,colnames(ad_wt_incoming1)])-colSums(wt_incoming$mat.ori[,colnames(ad_wt_incoming1)]), border = FALSE,
+                                                gp = gpar(fill = color.use, col=color.use)), show_annotation_name = FALSE)
+ha1 = rowAnnotation(Strength = anno_barplot(abs(ad_wt_incoming_psum), border = FALSE), show_annotation_name = FALSE)
+Heatmap(ad_wt_incoming1,  na_col = "white", name = "Relative strength",
+        bottom_annotation = col_annotation, top_annotation = ha2, #right_annotation = ha1,
+        cluster_rows = F,cluster_columns = F,column_title = "incoming",
+        row_names_side = "left",row_names_rot = 0,row_names_gp = gpar(fontsize = 20),column_names_gp = gpar(fontsize = 10),
+        width = unit(10, "cm"), height = unit(8, "cm"),
+        column_title_gp = gpar(fontsize = 10),column_names_rot = 90,
+        heatmap_legend_param = list(title_gp = gpar(fontsize = 8, fontface = "plain"),title_position = "leftcenter-rot",
+                                    border = NA, 
+                                    at =c(round(min(ad_wt_incoming1, na.rm = T), digits = 1), round(max(ad_wt_incoming1, na.rm = T), digits = 1)),
+                                    legend_height = unit(20, "mm"),labels_gp = gpar(fontsize = 8),grid_width = unit(2, "mm")))
+
+
+plotGeneExpression(cellchat, signaling = "MHC-II")
+
+##### 通路聚类 #####
+library(uwot)
+cellchat <- computeNetSimilarityPairwise(cellchat, type = "functional")
+cellchat <- netEmbedding(cellchat, type = "functional",umap.method = 'uwot')
+cellchat <- netClustering(cellchat, type = "functional",do.parallel = F)
+netVisual_embeddingPairwise(cellchat, type = "functional", label.size = 3.5)
+
+
+#rankSimilarity(cellchat, type = "functional")
+
+##### 整体信号对比 #####
+num.link <- sapply(cellchat.list, function(x) {rowSums(x@net$count) + colSums(x@net$count)-diag(x@net$count)})
+weight.MinMax <- c(min(num.link), max(num.link)) # control the dot size in the different datasets
+gg <- list()
+for (i in 1:length(cellchat.list)) {
+  gg[[i]] <- netAnalysis_signalingRole_scatter(cellchat.list[[i]], title = names(cellchat.list)[i], weight.MinMax = weight.MinMax)
+}
+#> Signaling role analysis on the aggregated cell-cell communication network from all signaling pathways
+#> Signaling role analysis on the aggregated cell-cell communication network from all signaling pathways
+patchwork::wrap_plots(plots = gg)
+
+
+gg1 <- list()
+gg1[[1]] <- netAnalysis_signalingRole_scatter_table(cellchat.list[[1]], title = names(cellchat.list)[1], weight.MinMax = weight.MinMax)
+gg1[[2]] <- netAnalysis_signalingRole_scatter_table(cellchat.list[[2]], title = names(cellchat.list)[2], weight.MinMax = weight.MinMax)
+df.all <- rbind.data.frame(data.frame(gg1[[1]],type="wt"),
+                           data.frame(gg1[[2]],type="ad"))
+ggplot(df.all, aes(x = x, y = y, color = labels)) +
+  geom_point(aes(shape = type,size=Count) ,fill = NA, stroke = 1) +
+  theme_classic() +scale_shape_manual(values = c(21, 22))+
+  scale_color_manual(values= scPalette(nlevels(cellchat.list[[1]]@idents)))+
+  labs(title = "Signaling Role across Datasets",
+       x = "Outgoing signaling contribution",
+       y = "Incoming signaling influence") +
+  geom_text(aes(label = labels), size = 3, vjust = -0.5, check_overlap = TRUE)
+
+
+
+
+rownames(gg1[[1]])[order(sqrt((gg1[[1]]$x-gg1[[2]]$x)^2+(gg1[[1]]$y-gg1[[2]]$y)^2))]
+
+#####受配体气泡图#####
+netVisual_bubble(cellchat,  
+                 sources.use = c(12),
+                 targets.use = c(6,15),
+                 comparison= c(1, 2), 
+                 angle.x = 45)
+
+gg1 <- netVisual_bubble(cellchat, sources.use = 12, targets.use = c(6, 15), 
+                        comparison = c(1, 2), max.dataset = 2, 
+                        title.name = "Increased signaling in AD", 
+                        angle.x = 45, remove.isolate = T)
+gg2 <- netVisual_bubble(cellchat, sources.use = 12, 
+                        targets.use = c(6,15),  comparison = c(1, 2), 
+                        max.dataset = 1, title.name = "Decreased signaling in AD", 
+                        angle.x = 45, remove.isolate = T)
+
+
+data1<-netVisual_bubble_table(cellchat,  
+                              sources.use = c(12),
+                              targets.use = c(6,15),
+                              comparison= c(1, 2), 
+                              angle.x = 45,return.data=T)
+data2<-netVisual_bubble_table(cellchat,  
+                              sources.use = 15,
+                              targets.use = 9,
+                              comparison= c(1, 2), 
+                              angle.x = 45,return.data=T)
+bubble_data<-rbind.data.frame(data1,data2)
+bubble_data1<-tidyr::spread(bubble_data[,c(5,8,12)],key = 'source.target',
+                            value='prob')
+bubble_data1[is.na(bubble_data1)]<-0
+bubble_data1[,8]<-bubble_data1[,3]-bubble_data1[,2]
+bubble_data1[,9]<-bubble_data1[,5]-bubble_data1[,4]
+bubble_data1[,10]<-bubble_data1[,7]-bubble_data1[,6]
+colnames(bubble_data1)[8:10]<-c("Pre-B_brain -> CD4Tn_Men","PreB_brain -> Th_Men",
+                                "Th_Men -> cDC2_Men")
+bubble_data2<-bubble_data1[bubble_data1[,8]<0|bubble_data1[,9]<0|
+                             bubble_data1[,10]<0,]
+rownames(bubble_data2)<-bubble_data2[,1]
+
+
+library(pheatmap)
+pheatmap(bubble_data2[,8:10],
+         color =  colorRampPalette(RColorBrewer::brewer.pal(n = 10, name = "Spectral"))(99))
+
+db_inter <- cellchat@DB$interaction
+mapped <- merge(bubble_data,
+                db_inter[, c("interaction_name_2","pathway_name")],
+                by = "interaction_name_2",
+                all.x = TRUE)
+g<-ggplot(bubble_data, aes(x = source.target, y = interaction_name_2, color = prob,size=pval)) +
+  geom_point(pch = 16) +
+  theme_linedraw() + theme(panel.grid.major = element_blank()) +
+  theme(axis.text.x = element_text(angle = 45, hjust= 1, vjust = 1),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank()) +
+  scale_x_discrete(position = "bottom")
+
+values <- c(1,2,3); names(values) <- c("p > 0.05", "0.01 < p < 0.05","p < 0.01")
+g <- g + scale_radius(range = c(min(bubble_data$pval), max(bubble_data$pval)), breaks = sort(unique(bubble_data$pval)),labels = names(values)[values %in% sort(unique(bubble_data$pval))], name = "p-value")
+#g <- g + scale_radius(range = c(1,3), breaks = values,labels = names(values), name = "p-value")
+if (min(bubble_data$prob, na.rm = T) != max(bubble_data$prob, na.rm = T)) {
+  g <- g + scale_colour_gradientn(colors = colorRampPalette(rev( RColorBrewer::brewer.pal(n = 10, name = "Spectral")))(99), na.value = "white", limits=c(quantile(bubble_data$prob, 0,na.rm= T), quantile(bubble_data$prob, 1,na.rm= T)),
+                                  breaks = c(quantile(bubble_data$prob, 0,na.rm= T), quantile(bubble_data$prob, 1,na.rm= T)), labels = c("min","max")) +
+    guides(color = guide_colourbar(barwidth = 0.5, title = "Commun. Prob."))
+} else {
+  g <- g + scale_colour_gradientn(colors = colorRampPalette(rev( RColorBrewer::brewer.pal(n = 10, name = "Spectral")))(99), na.value = "white") +
+    guides(color = guide_colourbar(barwidth = 0.5, title = "Commun. Prob."))
+}
+
+g <- g + theme(text = element_text(size = 10),plot.title = element_text(size=10)) +
+  theme(legend.title = element_text(size = 8), legend.text = element_text(size = 6))
+
+if (length(unique(bubble_data$source.target)) > 1) {
+  g <- g + geom_vline(xintercept=seq(1.5, length(unique(bubble_data$source.target))-0.5, 1),lwd=0.1,colour="grey90")
+}
+if (length(unique(bubble_data$interaction_name_2)) > 1) {
+  g <- g + geom_hline(yintercept=seq(1.5, length(unique(bubble_data$interaction_name_2))-0.5, 1),lwd=0.1,colour="grey90")
+}
+
+
+comparison=c(1,2)
+g <- g + geom_vline(xintercept = 2.5, linetype="dashed", color = "grey60", size = 0.2)
+
+group <- 1:2
+names(group) <- c("wt","ad")
+
+color <- c("#2E94B9","#D25565")
+names(color) <- c("wt","ad")
+
+dataset.name.order <- levels(bubble_data$source.target)
+dataset.name.order <- stringr::str_match(dataset.name.order, "\\(.*\\)")
+dataset.name.order <- stringr::str_sub(dataset.name.order, 2, stringr::str_length(dataset.name.order)-1)
+xtick.color <- color[dataset.name.order]
+g <- g + theme(axis.text.x = element_text(colour = xtick.color))
+
+
+pathways.show <- c("IL16") 
+weight.max<-getMaxWeight(cellchat.list, slot.name = c("netP"), attribute = pathways.show) # control the edge weights across different datasets
+par(mfrow = c(1,2), xpd=TRUE)
+for (i in 1:length(cellchat.list)) {
+  netVisual_aggregate(cellchat.list[[i]], signaling = pathways.show, 
+                      sources.use = c(12,15),targets.use = c(6,9,15),
+                      layout = "circle", edge.weight.max = weight.max[1], edge.width.max = 10, signaling.name = paste(pathways.show, names(cellchat.list)[i]))
+}
+pathways.show <- c("MHC-II") 
+weight.max<-getMaxWeight(cellchat.list, slot.name = c("netP"), attribute = pathways.show) 
+par(mfrow = c(1,2), xpd=TRUE)
+for (i in 1:length(cellchat.list)) {
+  netVisual_aggregate(cellchat.list[[i]], signaling = pathways.show, 
+                      sources.use = c(12,15),targets.use = c(6,9,15),
+                      layout = "circle", edge.weight.max = weight.max[1], edge.width.max = 10, signaling.name = paste(pathways.show, names(cellchat.list)[i]))
+}
+pathways.show <- c("MHC-I") 
+weight.max<-getMaxWeight(cellchat.list, slot.name = c("netP"), attribute = pathways.show) 
+par(mfrow = c(1,2), xpd=TRUE)
+for (i in 1:length(cellchat.list)) {
+  netVisual_aggregate(cellchat.list[[i]], signaling = pathways.show, 
+                      sources.use = c(12,15),targets.use = c(6,9,15),
+                      layout = "circle", edge.weight.max = weight.max[1], edge.width.max = 10, signaling.name = paste(pathways.show, names(cellchat.list)[i]))
+}
+pathways.show <- c("CD45") 
+weight.max<-getMaxWeight(cellchat.list, slot.name = c("netP"), attribute = pathways.show) 
+par(mfrow = c(1,2), xpd=TRUE)
+for (i in 1:length(cellchat.list)) {
+  netVisual_aggregate(cellchat.list[[i]], signaling = pathways.show, 
+                      sources.use = c(12,15),targets.use = c(6,9,15),
+                      layout = "circle", edge.weight.max = weight.max[1], edge.width.max = 10, signaling.name = paste(pathways.show, names(cellchat.list)[i]))
+}
+plotGeneExpression(cellchat, signaling = "MHC-II",split.by="type")
+
+
+cellchat <- netAnalysis_computeCentrality(cellchat, slot.name = "netP") # the slot 'netP' means the inferred intercellular communication network of signaling pathways
+# Visualize the computed centrality scores using heatmap, allowing ready identification of major signaling roles of cell groups
+netAnalysis_signalingRole_network(cellchat.list[[1]], signaling = "MHC-II", width = 8, height = 2.5, font.size = 10)
+#save.image(file="./result/final/all_scrna.RData")
+
+
+
+library(lme4)     # 线性混合模型
+library(lmerTest)  # 模型显著性检验
+library(WGCNA)    # 加权基因共表达网络分析
+library(tidyverse)
+#使用log2转换来处理基因表达数据，使数据更具有正态性
+exp_symbol_fpkm_h<-exp_symbol_fpkm[,anno_col$region=="H"]
+
+trait<-anno_col[match(colnames(exp_symbol_fpkm_h),rownames(anno_col)),]
+trait<-tibble::rownames_to_column(as.data.frame(trait),"subject")
+trait$month<-as.numeric(as.character(trait$month))
+results <- data.frame(Gene = rownames(exp_symbol_fpkm_h), 
+                      Beta_AD_Time = numeric(nrow(exp_symbol_fpkm_h)),
+                      P_Value = numeric(nrow(exp_symbol_fpkm_h)))
+for (i in 1:nrow(exp_symbol_fpkm_h)) {
+  gene <- rownames(exp_symbol_fpkm_h)[i]
+  
+  model <- lm(
+    formula = as.numeric(exp_symbol_fpkm_h[gene, ]) ~ condition*month ,
+    data = trait
+  )
+  
+  coef_summary <- coef(summary(model))
+  
+  # 检查是否存在GroupAD:Time项（注意因子编码方式）
+  if ("conditionAD:month" %in% rownames(coef_summary)) {
+    results$Beta_AD_Time[i] <- coef_summary["conditionAD:month", "Estimate"]
+    results$P_Value[i] <- coef_summary["conditionAD:month", "Pr(>|t|)"]
+  } else {
+    results$Beta_AD_Time[i] <- NA
+    results$P_Value[i] <- NA
+  }
+}
+results$FDR <- p.adjust(results$P_Value, method = "fdr")
+
+sig_genes <- results %>%
+  filter(P_Value < 0.05 & abs(Beta_AD_Time) > 0.1) %>%  # 根据数据分布调整阈值
+  pull(Gene)
+
+ad_samples <- trait %>% filter(condition == "AD") %>% pull(subject)
+ad_expr <- exp_symbol_fpkm_h[sig_genes, ad_samples]
+powers <- c(c(1:10), 
+            seq(from = 12,to = 30,by = 2))
+sft <- pickSoftThreshold(t(ad_expr), powerVector = powers,
+                         RsquaredCut =0.8,
+                         networkType = "unsigned",verbose = 5)
+
+# 可视化软阈值选择
+par(mfrow = c(1,2))
+plot(sft$fitIndices[,1], -sign(sft$fitIndices[,3])*sft$fitIndices[,2],
+     xlab = "Soft Threshold (power)",
+     ylab = "Scale Free Topology Model Fit (signed R^2)")
+text(sft$fitIndices[,1],-sign(sft$fitIndices[,3])*sft$fitIndices[,2],
+     labels=powers,cex=0.8,col="red")
+abline(h = 0.8, col = "red") 
+
+plot(sft$fitIndices[,1], sft$fitIndices[,5],
+     xlab = "Soft Threshold (power)",
+     ylab = "Mean Connectivity")
+text(sft$fitIndices[,1],sft$fitIndices[,5],labels=powers,cex=0.8,col="red")
+abline(h = 100, col = "blue")  # 平均连接度不宜过低
+
+power <-12
+
+net <- blockwiseModules(
+  t(ad_expr),
+  power = power,
+  TOMType = "unsigned",  
+  networkType = "unsigned",  
+  maxBlockSize = 5000, # 分块处理大矩阵
+  minModuleSize = 10,  # 最小模块基因数
+  mergeCutHeight = 0.25,  # 合并相似模块的阈值
+  numericLabels = TRUE,   # 模块用数字标签
+  saveTOMs = F,# 是否保存TOM矩阵
+  verbose = 3# 输出详细信息的级别
+)
+table(net$colors)
+
+moduleColors=labels2colors(net$colors)
+table(moduleColors)  # 显示不同颜色的基因数目
+# 绘制分类树和模块颜色对应图
+plotDendroAndColors(net$dendrograms[[1]], moduleColors[net$blockGenes[[1]]],
+                    "Module colors",
+                    dendroLabels = FALSE, hang = 0.03,
+                    addGuide = TRUE, guideHang = 0.05)
+
+
+MES0 <- moduleEigengenes(t(ad_expr),moduleColors)$eigengenes  # 计算模块特征向量
+MEs = orderMEs(MES0)  # 对模块特征向量排序
+
+# 计算模块与时间的相关性
+module_time_cor <- cor(MEs, trait[match(ad_samples,trait$subject), "month"], use = "p")
+modulePvalue_time <- corPvalueStudent(module_time_cor, nSamples = ncol(ad_expr))
+textMatrix <- paste(signif(module_time_cor, 2), "\n(",
+                    signif(modulePvalue_time, 1), ")", sep = "")
+dim(textMatrix) <- dim(module_time_cor)
+
+par(mar = c(6, 6, 3, 3))
+labeledHeatmap(
+  Matrix =module_time_cor,
+  xLabels = c("Time"),
+  yLabels = colnames(MEs),
+  ySymbols = colnames(MEs),
+  colorLabels = FALSE,
+  colors = blueWhiteRed(50),
+  textMatrix = textMatrix,
+  setStdMargins = FALSE,
+  cex.text = 0.7,
+  zlim = c(-1,1),
+  main = "Module-Trait Relationships"
+)
+#grey模块中包含了所有未参与聚类的基因，因此是无效模块，不应用于后续分析。
+mes_group <- merge(MEs,trait,
+                   by.x="row.names",by.y="subject") 
+
+draw_ggboxplot <- function(data,Module="Module",group="month"){
+  library(ggpubr)
+  ggboxplot(data,x=group, y=Module,
+            ylab = paste0(Module),
+            xlab = group,
+            fill = group,
+            palette = "jco",
+            #add="jitter",
+            legend = "") +stat_compare_means()
+}
+# 批量画boxplot
+colorNames <- names(MEs)
+p <- lapply(colorNames,function(x) {
+  draw_ggboxplot(mes_group, Module = x, group = "month")
+})
+library(gridExtra)
+do.call(grid.arrange,c(p,ncol=5)) 
+
+####上调yellow 下调 green turquoise blue
+color=data.frame(net=names(sort(table(net$colors))),
+                 module=names(sort(table(moduleColors))))
+hup_gene<- rownames(ad_expr)[net$colors == 4]
+hdown_gene<- rownames(ad_expr)[net$colors == 1]
+kME <- signedKME(t(ad_expr), MEs, outputColumnName = "kME")
+hup_gene1<-kME[hup_gene, ] %>% filter(kMEyellow>0.8) %>% rownames
+hdown_gene1<-kME[hdown_gene, ] %>% filter(kMEturquoise>0.8) %>% rownames
+
+
+exp_symbol_fpkm_l<-exp_symbol_fpkm[,anno_col$region=="L"]
+
+trait<-anno_col[match(colnames(exp_symbol_fpkm_l),rownames(anno_col)),]
+trait<-tibble::rownames_to_column(as.data.frame(trait),"subject")
+trait$month<-as.numeric(as.character(trait$month))
+
+results <- data.frame(Gene = rownames(exp_symbol_fpkm_l), 
+                      Beta_AD_Time = numeric(nrow(exp_symbol_fpkm_l)),
+                      P_Value = numeric(nrow(exp_symbol_fpkm_l)))
+for (i in 1:nrow(exp_symbol_fpkm_l)) {
+  gene <- rownames(exp_symbol_fpkm_l)[i]
+  
+  model <- lm(
+    formula = as.numeric(exp_symbol_fpkm_l[gene, ]) ~ condition*month ,
+    data = trait
+  )
+  
+  coef_summary <- coef(summary(model))
+  
+  # 检查是否存在GroupAD:Time项（注意因子编码方式）
+  if ("conditionAD:month" %in% rownames(coef_summary)) {
+    results$Beta_AD_Time[i] <- coef_summary["conditionAD:month", "Estimate"]
+    results$P_Value[i] <- coef_summary["conditionAD:month", "Pr(>|t|)"]
+  } else {
+    results$Beta_AD_Time[i] <- NA
+    results$P_Value[i] <- NA
+  }
+}
+results$FDR <- p.adjust(results$P_Value, method = "fdr")
+
+sig_genes <- results %>%
+  filter(P_Value < 0.05 & abs(Beta_AD_Time) > 0.1) %>%  # 根据数据分布调整阈值
+  pull(Gene)
+
+ad_samples <- trait %>% filter(condition == "AD") %>% pull(subject)
+ad_expr <- exp_symbol_fpkm_l[sig_genes, ad_samples]
+
+
+powers <- c(c(1:10), 
+            seq(from = 12,to = 30,by = 2))
+sft <- pickSoftThreshold(t(ad_expr), powerVector = powers,
+                         RsquaredCut =0.8,
+                         networkType = "unsigned",verbose = 5)
+
+# 可视化软阈值选择
+par(mfrow = c(1,2))
+plot(sft$fitIndices[,1], -sign(sft$fitIndices[,3])*sft$fitIndices[,2],
+     xlab = "Soft Threshold (power)",
+     ylab = "Scale Free Topology Model Fit (signed R^2)")
+text(sft$fitIndices[,1],-sign(sft$fitIndices[,3])*sft$fitIndices[,2],
+     labels=powers,cex=0.8,col="red")
+abline(h = 0.8, col = "red") 
+
+plot(sft$fitIndices[,1], sft$fitIndices[,5],
+     xlab = "Soft Threshold (power)",
+     ylab = "Mean Connectivity")
+text(sft$fitIndices[,1],sft$fitIndices[,5],labels=powers,cex=0.8,col="red")
+abline(h = 100, col = "blue")  # 平均连接度不宜过低
+
+power <-22
+
+net <- blockwiseModules(
+  t(ad_expr),
+  power = power,
+  TOMType = "unsigned",  
+  networkType = "unsigned",  
+  maxBlockSize = 5000, # 分块处理大矩阵
+  minModuleSize = 10,  # 最小模块基因数
+  mergeCutHeight = 0.25,  # 合并相似模块的阈值
+  numericLabels = TRUE,   # 模块用数字标签
+  saveTOMs = F,# 是否保存TOM矩阵
+  verbose = 3# 输出详细信息的级别
+)
+table(net$colors)
+
+##模块可视化,分类树与色块对应图
+moduleColors=labels2colors(net$colors)
+table(moduleColors)  # 显示不同颜色的基因数目
+# 绘制分类树和模块颜色对应图
+plotDendroAndColors(net$dendrograms[[1]], moduleColors[net$blockGenes[[1]]],
+                    "Module colors",
+                    dendroLabels = FALSE, hang = 0.03,
+                    addGuide = TRUE, guideHang = 0.05)
+
+
+
+
+MES0 <- moduleEigengenes(t(ad_expr),moduleColors)$eigengenes  # 计算模块特征向量
+MEs = orderMEs(MES0)  # 对模块特征向量排序
+
+# 计算模块与时间的相关性
+module_time_cor <- cor(MEs, trait[match(ad_samples,trait$subject), "month"], use = "p")
+modulePvalue_time <- corPvalueStudent(module_time_cor, nSamples = ncol(ad_expr))
+textMatrix <- paste(signif(module_time_cor, 2), "\n(",
+                    signif(modulePvalue_time, 1), ")", sep = "")
+dim(textMatrix) <- dim(module_time_cor)
+
+labeledHeatmap(
+  Matrix =module_time_cor,
+  xLabels = c("Time"),
+  yLabels = colnames(MEs),
+  ySymbols = colnames(MEs),
+  colorLabels = FALSE,
+  colors = blueWhiteRed(50),
+  textMatrix = textMatrix,
+  setStdMargins = FALSE,
+  cex.text = 0.7,
+  zlim = c(-1,1),
+  main = "Module-Trait Relationships"
+)
+#grey模块中包含了所有未参与聚类的基因，因此是无效模块，不应用于后续分析。
+
+mes_group <- merge(MEs,trait,
+                   by.x="row.names",by.y="subject") 
+
+# 批量画boxplot
+colorNames <- names(MEs)
+p <- lapply(colorNames,function(x) {
+  draw_ggboxplot(mes_group, Module = x, group = "month")
+})
+library(gridExtra)
+do.call(grid.arrange,c(p,ncol=5)) 
+
+color=data.frame(net=names(sort(table(net$colors))),
+                 module=names(sort(table(moduleColors))))
+lup_gene<- rownames(ad_expr)[net$colors == 1]
+ldown_gene<- rownames(ad_expr)[net$colors %in% c(3,4,2)]
+kME <- signedKME(t(ad_expr), MEs, outputColumnName = "kME")
+lup_gene1<-kME[lup_gene, ] %>% filter(kMEturquoise>0.8) %>% rownames
+ldown_gene1<-c(kME[rownames(ad_expr)[net$colors ==2],] %>% filter(kMEblue>0.8) %>% rownames,
+               kME[rownames(ad_expr)[net$colors ==3],] %>% filter(kMEbrown>0.8) %>% rownames,
+               kME[rownames(ad_expr)[net$colors ==4],] %>% filter(kMEyellow>0.8) %>% rownames)
+
+
+library(org.Mm.eg.db)
+library(clusterProfiler)
+go_h_wgcnaup<-bitr(hup_gene1, fromType="SYMBOL",
+                   toType="ENTREZID", OrgDb="org.Mm.eg.db")$ENTREZID %>%
+  enrichGO(gene= .,
+           'org.Mm.eg.db',
+           keyType = "ENTREZID",
+           ont = "BP",
+           pvalueCutoff = 0.05,
+           pAdjustMethod = "none",
+           qvalueCutoff = 1)
+go_h_wgcnadown<-bitr(hdown_gene1, fromType="SYMBOL",
+                     toType="ENTREZID", OrgDb="org.Mm.eg.db")$ENTREZID %>%
+  enrichGO(gene= .,
+           'org.Mm.eg.db',
+           keyType = "ENTREZID",
+           ont = "BP",
+           pvalueCutoff = 0.05,
+           pAdjustMethod = "none",
+           qvalueCutoff = 1)
+go_l_wgcnaup<-bitr(lup_gene1, fromType="SYMBOL",
+                   toType="ENTREZID", OrgDb="org.Mm.eg.db")$ENTREZID %>%
+  enrichGO(gene= .,
+           'org.Mm.eg.db',
+           keyType = "ENTREZID",
+           ont = "BP",
+           pvalueCutoff = 0.05,
+           pAdjustMethod = "none",
+           qvalueCutoff = 1)
+go_l_wgcnadown<-bitr(ldown_gene1, fromType="SYMBOL",
+                     toType="ENTREZID", OrgDb="org.Mm.eg.db")$ENTREZID %>%
+  enrichGO(gene= .,
+           'org.Mm.eg.db',
+           keyType = "ENTREZID",
+           ont = "BP",
+           pvalueCutoff = 0.05,
+           pAdjustMethod = "none",
+           qvalueCutoff = 1)
+
+
+set.seed(2)
+kk_h_wgcnaup<-bitr(hup_gene1, fromType="SYMBOL",
+                   toType="ENTREZID", OrgDb="org.Mm.eg.db")$ENTREZID %>%
+  enrichKEGG(gene=.,
+             organism= 'mmu',
+             pAdjustMethod = "none",
+             pvalueCutoff = 0.05,
+             qvalueCutoff = 1)
+kk_h_wgcnadown<-bitr(hdown_gene1, fromType="SYMBOL",
+                     toType="ENTREZID", OrgDb="org.Mm.eg.db")$ENTREZID %>%
+  enrichKEGG(gene=.,
+             organism= 'mmu',
+             pAdjustMethod = "none",
+             pvalueCutoff = 0.05,
+             qvalueCutoff = 1)
+
+kk_l_wgcnaup<-bitr(lup_gene1, fromType="SYMBOL",
+                   toType="ENTREZID", OrgDb="org.Mm.eg.db")$ENTREZID %>%
+  enrichKEGG(gene=.,
+             organism= 'mmu',
+             pAdjustMethod = "none",
+             pvalueCutoff = 0.05,
+             qvalueCutoff = 1)
+kk_l_wgcnadown<-bitr(ldown_gene1, fromType="SYMBOL",
+                     toType="ENTREZID", OrgDb="org.Mm.eg.db")$ENTREZID %>%
+  enrichKEGG(gene=.,
+             organism= 'mmu',
+             pAdjustMethod = "none",
+             pvalueCutoff = 0.05,
+             qvalueCutoff = 1)
+
+
+
+# 加载单细胞数据（Seurat对象）
+library(dplyr)
+library(plyr)
+library(CellChat)
+library(Seurat)
+load("./result/final/all_scrna.RData")
+library(irGSEA)
+hipp_score<-irGSEA.score(brain_select, assay = "RNA",
+                         geneset =list(up=hup_gene1,
+                                       down=hdown_gene1,
+                                       all=union(hup_gene1,hdown_gene1)), 
+                         slot = "data", seeds = 1, ncores = 1,
+                         min.cells = 3, min.feature = 0,
+                         custom = T,  msigdb = T, maxGSSize = 1000,
+                         species = "Mus musculus", category = "H",  
+                         subcategory = NULL, geneid = "symbol",
+                         method = c("AUCell", "UCell", "singscore","ssgsea"),
+                         aucell.MaxRank = NULL, ucell.MaxRank = NULL, 
+                         kcdf = 'Gaussian')
+m_score<-irGSEA.score(brain_select, assay = "RNA",
+                      geneset =list(up=lup_gene1,
+                                    down=ldown_gene1,
+                                    all=union(lup_gene1,ldown_gene1)), 
+                      slot = "data", seeds = 1, ncores = 1,
+                      min.cells = 3, min.feature = 0,
+                      custom = T,  msigdb = T, maxGSSize = 1000,
+                      species = "Mus musculus", category = "H",  
+                      subcategory = NULL, geneid = "symbol",
+                      method = c("AUCell", "UCell", "singscore","ssgsea"),
+                      aucell.MaxRank = NULL, ucell.MaxRank = NULL, 
+                      kcdf = 'Gaussian')
+brain_select$hup_score<-hipp_score@assays$AUCell$data[1,]
+brain_select$hdown_score<-hipp_score@assays$AUCell$data[2,]
+brain_select$h_score<-hipp_score@assays$AUCell$data[3,]
+brain_select$mup_score<-m_score@assays$AUCell$data[1,]
+brain_select$mdown_score<-m_score@assays$AUCell$data[2,]
+brain_select$m_score<-m_score@assays$AUCell$data[3,]
+
+
+index<-match(c(colnames(Tcell.int1),colnames(nkcell.int),
+               colnames(dc.int),colnames(Bcell.int),colnames(mast.int)),
+             colnames(brain_select))
+brain_select$cell.fined<-NA
+brain_select$cell.fined[index]<-c(as.character(Tcell.int1$cell),nkcell.int$cell,
+                                  dc.int$cell,Bcell.int$cell,mast.int$cell)
+brain_select_subset<-brain_select[,index]
+
+library(ggpubr)
+df <- data.frame(
+  h = brain_select_subset$h_score,
+  cell = brain_select_subset$cell.fined
+)
+
+# 计算每个 cell 的中位值并排序
+median_order <- df %>%
+  dplyr::group_by(cell) %>%
+  dplyr::summarise(median_h = median(h, na.rm = TRUE)) %>%
+  arrange(desc(median_h)) %>%
+  pull(cell)
+
+# 将 cell 转换为因子，按中位值排序
+df$cell <- factor(df$cell, levels = median_order)
+ggplot(df, aes(x = cell, y = h, color = cell)) +
+  geom_violin(trim = TRUE, alpha = 0.7) +
+  geom_boxplot(width = 0.1, fill = "white") +
+  labs(x = "", y = "h Score") +
+  theme_classic() +
+  theme(
+    legend.position = "none",
+    axis.title.y = element_text(size = 10),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 10),  # 调整 x 轴标签角度
+    axis.text.y = element_text(size = 10),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.border = element_blank(),
+    axis.line = element_line(colour = "black")
+  )
+ggsave("./result/bulk/h score.pdf",width = 10,height=5)
+
+df <- data.frame(
+  h_down = brain_select_subset$hdown_score,
+  cell = brain_select_subset$cell.fined
+)
+
+# 计算每个 cell 的中位值并排序
+library(dplyr)
+median_order <- df %>%
+  dplyr::group_by(cell) %>%
+  dplyr::summarise(median_h = median(h_down, na.rm = TRUE)) %>%
+  arrange(desc(median_h)) %>%
+  pull(cell)
+
+# 将 cell 转换为因子，按中位值排序
+df$cell <- factor(df$cell, levels = median_order)
+ggplot(df, aes(x = cell, y = h_down, color = cell)) +
+  geom_violin(trim = TRUE, alpha = 0.7) +
+  geom_boxplot(width = 0.1, fill = "white") +
+  labs(x = "", y = "h_down Score") +
+  theme_classic() +
+  theme(
+    legend.position = "none",
+    axis.title.y = element_text(size = 10),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 10),  # 调整 x 轴标签角度
+    axis.text.y = element_text(size = 10),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.border = element_blank(),
+    axis.line = element_line(colour = "black")
+  )
+ggsave("./result/bulk/h_down score.pdf",width = 10,height=5)
+
+df <- data.frame(
+  h_up = brain_select_subset$hup_score,
+  cell = brain_select_subset$cell.fined
+)
+
+# 计算每个 cell 的中位值并排序
+library(dplyr)
+median_order <- df %>%
+  dplyr::group_by(cell) %>%
+  dplyr::summarise(median_h = median(h_up, na.rm = TRUE)) %>%
+  arrange(desc(median_h)) %>%
+  pull(cell)
+
+# 将 cell 转换为因子，按中位值排序
+df$cell <- factor(df$cell, levels = median_order)
+ggplot(df, aes(x = cell, y = h_up, color = cell)) +
+  geom_violin(trim = TRUE, alpha = 0.7) +
+  geom_boxplot(width = 0.1, fill = "white") +
+  labs(x = "", y = "h_up Score") +
+  theme_classic() +
+  theme(
+    legend.position = "none",
+    axis.title.y = element_text(size = 10),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 10),  # 调整 x 轴标签角度
+    axis.text.y = element_text(size = 10),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.border = element_blank(),
+    axis.line = element_line(colour = "black")
+  )
+ggsave("./result/bulk/h_up score.pdf",width = 10,height=5)
+
+df <- data.frame(
+  m = brain_select_subset$m_score,
+  cell = brain_select_subset$cell.fined
+)
+
+# 计算每个 cell 的中位值并排序
+library(dplyr)
+median_order <- df %>%
+  dplyr::group_by(cell) %>%
+  dplyr::summarise(median_m = median(m, na.rm = TRUE)) %>%
+  arrange(desc(median_m)) %>%
+  pull(cell)
+
+# 将 cell 转换为因子，按中位值排序
+df$cell <- factor(df$cell, levels = median_order)
+ggplot(df, aes(x = cell, y = m, color = cell)) +
+  geom_violin(trim = TRUE, alpha = 0.7) +
+  geom_boxplot(width = 0.1, fill = "white") +
+  labs(x = "", y = "m Score") +
+  theme_classic() +
+  theme(
+    legend.position = "none",
+    axis.title.y = element_text(size = 10),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 10),  # 调整 x 轴标签角度
+    axis.text.y = element_text(size = 10),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.border = element_blank(),
+    axis.line = element_line(colour = "black")
+  )
+ggsave("./result/bulk/m score.pdf",width = 10,height=5)
+
+df <- data.frame(
+  m_down = brain_select_subset$mdown_score,
+  cell = brain_select_subset$cell.fined
+)
+
+# 计算每个 cell 的中位值并排序
+median_order <- df %>%
+  dplyr::group_by(cell) %>%
+  dplyr::summarise(median_m = median(m_down, na.rm = TRUE)) %>%
+  arrange(desc(median_m)) %>%
+  pull(cell)
+
+# 将 cell 转换为因子，按中位值排序
+df$cell <- factor(df$cell, levels = median_order)
+ggplot(df, aes(x = cell, y = m_down, color = cell)) +
+  geom_violin(trim = TRUE, alpha = 0.7) +
+  geom_boxplot(width = 0.1, fill = "white") +
+  labs(x = "", y = "m_down Score") +
+  theme_classic() +
+  theme(
+    legend.position = "none",
+    axis.title.y = element_text(size = 10),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 10),  # 调整 x 轴标签角度
+    axis.text.y = element_text(size = 10),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.border = element_blank(),
+    axis.line = element_line(colour = "black")
+  )
+ggsave("./result/bulk/m_down score.pdf",width = 10,height=5)
+
+df <- data.frame(
+  m_up = brain_select_subset$mup_score,
+  cell = brain_select_subset$cell.fined
+)
+
+# 计算每个 cell 的中位值并排序
+median_order <- df %>%
+  dplyr::group_by(cell) %>%
+  dplyr::summarise(median_m = median(m_up, na.rm = TRUE)) %>%
+  arrange(desc(median_m)) %>%
+  pull(cell)
+
+# 将 cell 转换为因子，按中位值排序
+df$cell <- factor(df$cell, levels = median_order)
+ggplot(df, aes(x = cell, y = m_up, color = cell)) +
+  geom_violin(trim = TRUE, alpha = 0.7) +
+  geom_boxplot(width = 0.1, fill = "white") +
+  labs(x = "", y = "m_up Score") +
+  theme_classic() +
+  theme(
+    legend.position = "none",
+    axis.title.y = element_text(size = 10),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 10),  # 调整 x 轴标签角度
+    axis.text.y = element_text(size = 10),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.border = element_blank(),
+    axis.line = element_line(colour = "black")
+  )
+ggsave("./result/bulk/m_up score.pdf",width = 10,height=5)
+
